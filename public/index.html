@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16233b">
+<title>Tómbola</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%2316233b'/><text x='50' y='66' font-size='48' text-anchor='middle' fill='%23e9a83a' font-family='sans-serif' font-weight='bold'>99</text></svg>">
+<link rel="stylesheet" href="/estilos.css">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="envoltura">
+    <div class="etiqueta">Tómbola · números del 00 al 99</div>
+    <h1 id="t-nombre">Cargando…</h1>
+    <p class="premio">Premio: <b id="t-premio">—</b></p>
+    <div class="datos">
+      <span class="chip-dato">Cada número <b id="t-precio">—</b></span>
+      <span class="chip-dato">Sorteo por <b>Lotería Nacional</b></span>
+    </div>
+    <div class="progreso">
+      <div class="barra"><div id="t-barra" style="width:0%"></div></div>
+      <small id="t-progreso">&nbsp;</small>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="avisos"></div>
+
+  <div class="pestanas" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="elegir">Elegir números</button>
+    <button role="tab" aria-selected="false" data-tab="mios">Mis números</button>
+  </div>
+
+  <!-- ELEGIR -->
+  <section id="tab-elegir">
+    <div class="tarjeta">
+      <div class="grilla" id="grilla" aria-label="Grilla de números"></div>
+      <div class="leyenda">
+        <span><i></i>Disponible</span>
+        <span><i class="sel"></i>Tu elección</span>
+        <span><i class="reservado"></i>Reservado</span>
+        <span><i class="pendiente"></i>En verificación</span>
+        <span><i class="pagado"></i>Vendido</span>
+      </div>
+    </div>
+    <p class="ayuda" style="text-align:center;margin-top:12px" id="ayuda-reserva">Tocá los números que quieras. Al reservar tenés unos minutos para transferir y subir el comprobante.</p>
+  </section>
+
+  <!-- MIS NÚMEROS -->
+  <section id="tab-mios" class="oculto">
+    <div class="tarjeta">
+      <form id="form-mios" class="campo" style="display:flex;gap:8px;align-items:flex-end;margin-bottom:6px">
+        <div style="flex:1">
+          <label for="mios-cel">Tu celular</label>
+          <input type="tel" id="mios-cel" inputmode="tel" placeholder="Ej: 11 2345 6789" autocomplete="tel">
+        </div>
+        <button class="btn oscuro" type="submit">Ver</button>
+      </form>
+      <div id="mios-lista"><div class="vacio">Ingresá el celular con el que reservaste para ver tus números y su estado.</div></div>
+    </div>
+  </section>
+
+  <p class="pie">¿Dudas? Comunicate con el organizador.</p>
+</main>
+
+<!-- Barra inferior -->
+<div class="barra-accion" id="barra-accion">
+  <div class="envoltura">
+    <div class="resumen">
+      <div><b id="b-cant">0</b> <span id="b-texto">números</span> · <b id="b-total">$0</b></div>
+      <div class="lista" id="b-lista"></div>
+    </div>
+    <button class="btn secundario chico" id="b-limpiar" type="button">Limpiar</button>
+    <button class="btn" id="b-reservar" type="button">Reservar</button>
+  </div>
+</div>
+
+<!-- Modal datos -->
+<div class="velo oculto" id="m-datos" role="dialog" aria-modal="true" aria-labelledby="m-datos-t">
+  <form class="modal" id="form-datos">
+    <h2 id="m-datos-t">Tus datos</h2>
+    <p class="sub">Para identificarte como dueño de los números.</p>
+    <div class="bolillas" id="d-bolillas" style="margin-bottom:16px"></div>
+    <div class="campo">
+      <label for="d-nombre">Nombre y apellido</label>
+      <input type="text" id="d-nombre" autocomplete="name" required maxlength="80">
+    </div>
+    <div class="campo">
+      <label for="d-cel">Celular (con código de área)</label>
+      <input type="tel" id="d-cel" inputmode="tel" autocomplete="tel" placeholder="Ej: 11 2345 6789" required>
+      <div class="ayuda">Con este celular vas a poder consultar tus números.</div>
+    </div>
+    <div id="d-error"></div>
+    <button class="btn bloque" type="submit" id="d-enviar">Reservar y pagar</button>
+    <button class="btn link bloque" type="button" data-cerrar>Volver</button>
+  </form>
+</div>
+
+<!-- Modal pago -->
+<div class="velo oculto" id="m-pago" role="dialog" aria-modal="true" aria-labelledby="m-pago-t">
+  <div class="modal">
+    <h2 id="m-pago-t">Completá el pago</h2>
+    <p class="sub">Tus números están reservados. Transferí y subí el comprobante antes de que termine el tiempo.</p>
+    <div class="reloj" id="p-reloj">--:--</div>
+    <div class="reloj-sub">tiempo restante de reserva</div>
+    <div class="bolillas" id="p-bolillas"></div>
+    <div class="caja-pago">
+      <div class="fila"><span>Total a transferir</span><span class="total" id="p-total">$0</span></div>
+      <div class="fila"><span>Alias</span><span class="valor"><span id="p-alias">—</span><button class="copiar" type="button" id="p-copiar">Copiar</button></span></div>
+      <div class="fila oculto" id="p-fila-titular"><span>Titular</span><span class="valor" id="p-titular"></span></div>
+      <div class="fila"><span>Código de reserva</span><span class="valor" id="p-codigo">—</span></div>
+    </div>
+    <label class="subida" id="p-subida">
+      <input type="file" id="p-archivo" accept="image/*,application/pdf">
+      <span class="icono">📎</span>
+      <b>Subir comprobante</b>
+      <div class="ayuda">Foto o captura de la transferencia, o PDF</div>
+      <div class="nombre-archivo" id="p-nombre-archivo"></div>
+      <img class="vista-previa oculto" id="p-preview" alt="Vista previa del comprobante">
+    </label>
+    <div id="p-error" style="margin-top:12px"></div>
+    <button class="btn bloque" id="p-enviar" type="button" style="margin-top:14px" disabled>Enviar comprobante</button>
+    <button class="btn link bloque" id="p-cancelar" type="button">Cancelar reserva</button>
+  </div>
+</div>
+
+<!-- Modal resultado -->
+<div class="velo oculto" id="m-listo" role="dialog" aria-modal="true" aria-labelledby="m-listo-t">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:44px">🎟️</div>
+    <h2 id="m-listo-t">¡Comprobante recibido!</h2>
+    <p class="sub">El organizador va a verificar el pago. Cuando lo apruebe, tus números quedan confirmados a tu nombre.</p>
+    <div class="bolillas" id="l-bolillas" style="justify-content:center;margin-bottom:18px"></div>
+    <button class="btn oscuro bloque" type="button" id="l-ver">Ver mis números</button>
+    <button class="btn link bloque" type="button" data-cerrar>Cerrar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, '0');
+  const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-AR');
+  const LS = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+
+  let config = null;
+  let numeros = [];
+  let desfase = 0; // servidor - cliente (ms)
+  const seleccion = new Set();
+  let reserva = LS.get('tombola_reserva');
+  let misNumeros = new Set(LS.get('tombola_mis_numeros') || []);
+  let archivo = null;
+  let relojTimer = null;
+
+  async function api(url, opts = {}) {
+    const res = await fetch(url, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    let data = null;
+    try { data = await res.json(); } catch {}
+    if (!res.ok) { const e = new Error((data && data.error) || 'Error de conexión'); e.data = data; e.status = res.status; throw e; }
+    return data;
+  }
+
+  function toast(msg) {
+    const t = $('#toast'); t.textContent = msg; t.classList.add('visible');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('visible'), 2600);
+  }
+  function aviso(el, tipo, html) { el.innerHTML = html ? `<div class="aviso ${tipo}">${html}</div>` : ''; }
+  function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function bolillas(el, lista, clara) { el.innerHTML = lista.map((n) => `<span class="bolilla${clara ? ' clara' : ''}">${pad(n)}</span>`).join(''); }
+
+  // ---------- Estado ----------
+  async function cargar() {
+    try {
+      const d = await api('/api/estado');
+      config = d.config; numeros = d.numeros;
+      desfase = new Date(d.ahora).getTime() - Date.now();
+      pintarCabecera(); pintarGrilla(); pintarAvisos(); pintarBarra();
+    } catch (e) {
+      aviso($('#avisos'), 'error', 'No pudimos cargar la tómbola. Revisá tu conexión.');
+    }
+  }
+
+  function pintarCabecera() {
+    document.title = config.nombre;
+    $('#t-nombre').textContent = config.nombre;
+    $('#t-premio').textContent = config.premio;
+    $('#t-precio').textContent = pesos(config.precio);
+    const vendidos = numeros.filter((x) => x.e === 'pagado').length;
+    const libres = numeros.filter((x) => x.e === 'libre').length;
+    $('#t-barra').style.width = vendidos + '%';
+    $('#t-progreso').textContent = `${vendidos} de 100 vendidos · ${libres} disponibles`;
+    $('#ayuda-reserva').textContent = `Tocá los números que quieras. Al reservar tenés ${config.minutos_reserva} minutos para transferir y subir el comprobante.`;
+  }
+
+  function pintarAvisos() {
+    const vendidos = numeros.filter((x) => x.e === 'pagado').length;
+    const partes = [];
+    if (config.numero_ganador !== null && config.numero_ganador !== undefined) {
+      partes.push(`<div class="aviso ganador"><span class="grande">Número ganador: ${pad(config.numero_ganador)}</span>${esc(config.detalle_ganador || '')}</div>`);
+    } else if (vendidos === 100) {
+      partes.push(`<div class="aviso completa"><span class="grande">¡Tómbola completa!</span>Se vendieron los 100 números. ${esc(config.info_sorteo)}</div>`);
+    }
+    $('#avisos').innerHTML = partes.join('');
+  }
+
+  function pintarGrilla() {
+    const g = $('#grilla');
+    const ganador = config.numero_ganador;
+    if (!g.children.length) {
+      for (let i = 0; i < 100; i++) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'celda'; b.dataset.n = i; b.textContent = pad(i);
+        g.appendChild(b);
+      }
+    }
+    numeros.forEach((x) => {
+      const b = g.children[x.n];
+      const libre = x.e === 'libre';
+      if (!libre) seleccion.delete(x.n);
+      b.className = 'celda' + (libre ? '' : ' ' + x.e) + (seleccion.has(x.n) ? ' sel' : '') +
+        (misNumeros.has(x.n) && x.e !== 'libre' ? ' mio' : '') + (ganador === x.n ? ' ganadora' : '');
+      b.disabled = !libre;
+      const txt = { libre: 'disponible', reservado: 'reservado', pendiente: 'en verificación', pagado: 'vendido' }[x.e];
+      b.setAttribute('aria-label', `Número ${pad(x.n)}, ${seleccion.has(x.n) ? 'seleccionado' : txt}`);
+    });
+  }
+
+  function pintarBarra() {
+    const lista = [...seleccion].sort((a, b) => a - b);
+    $('#barra-accion').classList.toggle('visible', lista.length > 0 && !reservaActiva());
+    $('#b-cant').textContent = lista.length;
+    $('#b-texto').textContent = lista.length === 1 ? 'número' : 'números';
+    $('#b-total').textContent = pesos(lista.length * (config ? config.precio : 0));
+    $('#b-lista').textContent = lista.map(pad).join(' · ');
+  }
+
+  $('#grilla').addEventListener('click', (ev) => {
+    const b = ev.target.closest('.celda'); if (!b || b.disabled) return;
+    if (reservaActiva()) { abrirPago(); return; }
+    const n = Number(b.dataset.n);
+    seleccion.has(n) ? seleccion.delete(n) : seleccion.add(n);
+    pintarGrilla(); pintarBarra();
+  });
+  $('#b-limpiar').addEventListener('click', () => { seleccion.clear(); pintarGrilla(); pintarBarra(); });
+
+  // ---------- Modales ----------
+  function abrir(id) { $(id).classList.remove('oculto'); }
+  function cerrar(id) { $(id).classList.add('oculto'); }
+  document.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => cerrar('#' + b.closest('.velo').id)));
+
+  $('#b-reservar').addEventListener('click', () => {
+    if (!seleccion.size) return;
+    bolillas($('#d-bolillas'), [...seleccion].sort((a, b) => a - b));
+    $('#d-nombre').value = LS.get('tombola_nombre') || '';
+    $('#d-cel').value = LS.get('tombola_celular') || '';
+    aviso($('#d-error'), '', '');
+    abrir('#m-datos');
+    setTimeout(() => ($('#d-nombre').value ? $('#d-cel') : $('#d-nombre')).focus(), 50);
+  });
+
+  $('#form-datos').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const btn = $('#d-enviar'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Reservando…';
+    try {
+      const nums = [...seleccion].sort((a, b) => a - b);
+      const nombre = $('#d-nombre').value.trim();
+      const r = await api('/api/reservar', { method: 'POST', body: JSON.stringify({ numeros: nums, nombre, celular: $('#d-cel').value }) });
+      LS.set('tombola_nombre', nombre); LS.set('tombola_celular', r.celular);
+      reserva = { id: r.id, codigo: r.codigo, numeros: r.numeros, hasta: r.reservado_hasta, celular: r.celular, precio: config.precio };
+      LS.set('tombola_reserva', reserva);
+      recordarMios(r.numeros);
+      seleccion.clear();
+      cerrar('#m-datos');
+      await cargar();
+      abrirPago();
+    } catch (e) {
+      if (e.status === 409 && e.data && e.data.ocupados) {
+        e.data.ocupados.forEach((n) => seleccion.delete(n));
+        aviso($('#d-error'), 'error', `Los números <b>${e.data.ocupados.map(pad).join(', ')}</b> los acaba de reservar otra persona. Los quitamos de tu elección.`);
+        bolillas($('#d-bolillas'), [...seleccion].sort((a, b) => a - b));
+        cargar();
+        if (!seleccion.size) setTimeout(() => cerrar('#m-datos'), 2200);
+      } else aviso($('#d-error'), 'error', esc(e.message));
+    } finally { btn.disabled = false; btn.textContent = 'Reservar y pagar'; }
+  });
+
+  function recordarMios(lista) { lista.forEach((n) => misNumeros.add(n)); LS.set('tombola_mis_numeros', [...misNumeros]); }
+
+  // ---------- Pago ----------
+  function ahora() { return Date.now() + desfase; }
+  function reservaActiva() { return reserva && new Date(reserva.hasta).getTime() > ahora(); }
+
+  function abrirPago() {
+    if (!reserva) return;
+    bolillas($('#p-bolillas'), reserva.numeros);
+    $('#p-total').textContent = pesos(reserva.numeros.length * (reserva.precio || config.precio));
+    $('#p-alias').textContent = config.alias;
+    $('#p-titular').textContent = config.titular || '';
+    $('#p-fila-titular').classList.toggle('oculto', !config.titular);
+    $('#p-codigo').textContent = reserva.codigo;
+    aviso($('#p-error'), '', '');
+    abrir('#m-pago');
+    tic(); clearInterval(relojTimer); relojTimer = setInterval(tic, 500);
+  }
+
+  function tic() {
+    if (!reserva) return;
+    const ms = new Date(reserva.hasta).getTime() - ahora();
+    const el = $('#p-reloj');
+    if (ms <= 0) {
+      el.textContent = '00:00'; el.classList.add('urgente');
+      clearInterval(relojTimer);
+      aviso($('#p-error'), 'error', 'La reserva venció y los números se liberaron. Podés volver a elegirlos si siguen disponibles.');
+      $('#p-enviar').disabled = true;
+      finReserva(false);
+      return;
+    }
+    const s = Math.ceil(ms / 1000);
+    el.textContent = `${pad(Math.floor(s / 60))}:${pad(s % 60)}`;
+    el.classList.toggle('urgente', s <= 60);
+  }
+
+  function finReserva(cerrarModal = true) {
+    reserva = null; LS.del('tombola_reserva'); archivo = null;
+    $('#p-archivo').value = ''; $('#p-nombre-archivo').textContent = ''; $('#p-preview').classList.add('oculto');
+    $('#p-enviar').disabled = true;
+    if (cerrarModal) { clearInterval(relojTimer); cerrar('#m-pago'); }
+    cargar();
+  }
+
+  $('#p-copiar').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(config.alias); toast('Alias copiado'); }
+    catch { toast('Copiá el alias: ' + config.alias); }
+  });
+
+  $('#p-archivo').addEventListener('change', async (ev) => {
+    const f = ev.target.files[0]; if (!f) return;
+    if (f.size > 10 * 1024 * 1024) { aviso($('#p-error'), 'error', 'El archivo supera los 10 MB.'); return; }
+    aviso($('#p-error'), '', '');
+    archivo = f;
+    $('#p-nombre-archivo').textContent = f.name;
+    const prev = $('#p-preview');
+    if (f.type.startsWith('image/')) { prev.src = URL.createObjectURL(f); prev.classList.remove('oculto'); }
+    else prev.classList.add('oculto');
+    $('#p-enviar').disabled = !reservaActiva();
+  });
+
+  async function comprimir(f) {
+    if (!f.type.startsWith('image/') || f.type === 'image/gif') return f;
+    try {
+      const bmp = await createImageBitmap(f);
+      const max = 1800; const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
+      return blob && blob.size < f.size ? new File([blob], f.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }) : f;
+    } catch { return f; }
+  }
+  function aBase64(f) {
+    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(f); });
+  }
+
+  $('#p-enviar').addEventListener('click', async () => {
+    if (!archivo || !reserva) return;
+    const btn = $('#p-enviar'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Enviando…';
+    try {
+      const f = await comprimir(archivo);
+      const tipo = f.type || (f.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
+      await api('/api/comprobante', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular, mime: tipo, nombreArchivo: f.name, b64: await aBase64(f) }) });
+      bolillas($('#l-bolillas'), reserva.numeros);
+      finReserva(true);
+      abrir('#m-listo');
+    } catch (e) {
+      aviso($('#p-error'), 'error', esc(e.message));
+      btn.disabled = false;
+    } finally { btn.textContent = 'Enviar comprobante'; if (!reserva) btn.disabled = true; }
+  });
+
+  $('#p-cancelar').addEventListener('click', async () => {
+    if (!reserva) { cerrar('#m-pago'); return; }
+    if (!confirm('¿Cancelar la reserva y liberar los números?')) return;
+    try { await api('/api/cancelar', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular }) }); } catch {}
+    reserva.numeros.forEach((n) => misNumeros.delete(n)); LS.set('tombola_mis_numeros', [...misNumeros]);
+    finReserva(true);
+    toast('Reserva cancelada');
+  });
+
+  $('#l-ver').addEventListener('click', () => { cerrar('#m-listo'); irTab('mios'); verMios(LS.get('tombola_celular')); });
+
+  // ---------- Mis números ----------
+  function irTab(t) {
+    document.querySelectorAll('.pestanas button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+    $('#tab-elegir').classList.toggle('oculto', t !== 'elegir');
+    $('#tab-mios').classList.toggle('oculto', t !== 'mios');
+    $('#barra-accion').classList.toggle('visible', t === 'elegir' && seleccion.size > 0 && !reservaActiva());
+    if (t === 'mios' && !$('#mios-cel').value && LS.get('tombola_celular')) { $('#mios-cel').value = LS.get('tombola_celular'); verMios($('#mios-cel').value); }
+  }
+  document.querySelectorAll('.pestanas button').forEach((b) => b.addEventListener('click', () => irTab(b.dataset.tab)));
+
+  const TXT = { reservada: 'Reservado · falta comprobante', pendiente: 'En verificación', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida' };
+
+  async function verMios(cel) {
+    if (!cel) return;
+    const cont = $('#mios-lista');
+    cont.innerHTML = '<div class="vacio">Buscando…</div>';
+    try {
+      const lista = await api('/api/mis-compras?celular=' + encodeURIComponent(cel));
+      if (!lista.length) { cont.innerHTML = '<div class="vacio">No encontramos números para ese celular.</div>'; return; }
+      LS.set('tombola_celular', cel);
+      lista.filter((c) => ['aprobada', 'pendiente', 'reservada'].includes(c.estado)).forEach((c) => recordarMios(c.numeros));
+      pintarGrilla();
+      const confirmados = lista.filter((c) => c.estado === 'aprobada').flatMap((c) => c.numeros).sort((a, b) => a - b);
+      let html = '';
+      if (confirmados.length) html += `<div class="aviso ok"><b>Tus números confirmados:</b><div class="bolillas" style="margin-top:8px">${confirmados.map((n) => `<span class="bolilla">${pad(n)}</span>`).join('')}</div></div>`;
+      html += lista.map((c) => `
+        <div class="compra">
+          <div class="compra-cab">
+            <span class="estado ${c.estado}">${TXT[c.estado] || c.estado}</span>
+            <span class="cod">Código ${esc(c.codigo)} · ${new Date(c.created_at).toLocaleDateString('es-AR')}</span>
+          </div>
+          <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla clara">${pad(n)}</span>`).join('')}</div>
+          ${c.estado === 'rechazada' && c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
+          ${c.estado === 'reservada' && reserva && reserva.id === c.id ? '<button class="btn chico" style="margin-top:10px" data-pagar>Completar pago</button>' : ''}
+        </div>`).join('');
+      cont.innerHTML = html;
+      const bp = cont.querySelector('[data-pagar]'); if (bp) bp.addEventListener('click', abrirPago);
+    } catch (e) { cont.innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+  }
+  $('#form-mios').addEventListener('submit', (ev) => { ev.preventDefault(); verMios($('#mios-cel').value); });
+
+  // ---------- Inicio ----------
+  cargar().then(() => { if (reserva) { if (reservaActiva()) abrirPago(); else { reserva = null; LS.del('tombola_reserva'); } } });
+  setInterval(() => { if (!document.hidden) cargar(); }, 10000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
+})();
+</script>
+</body>
+</html>

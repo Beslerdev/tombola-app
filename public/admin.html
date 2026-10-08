@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16233b">
+<meta name="robots" content="noindex">
+<title>Administración · Tómbola</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%2316233b'/><text x='50' y='66' font-size='48' text-anchor='middle' fill='%23e9a83a' font-family='sans-serif' font-weight='bold'>99</text></svg>">
+<link rel="stylesheet" href="/estilos.css">
+<style>
+  .metricas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .metrica { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 10px; }
+  .metrica b { display: block; font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; line-height: 1.1; }
+  .metrica span { font-size: 11.5px; color: #b9c3d6; }
+  @media (max-width: 520px) { .metricas { grid-template-columns: repeat(2, 1fr); } }
+  .pestanas { overflow-x: auto; }
+  .pestanas button { white-space: nowrap; }
+  .contador { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--acento); color: #fff; font-size: 11.5px; margin-left: 4px; }
+  .persona { font-weight: 700; font-size: 15.5px; }
+  .meta { font-size: 13px; color: var(--suave); margin: 2px 0 8px; }
+  .meta a { color: var(--ok); font-weight: 600; text-decoration: none; }
+  .acciones { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .comprobante-img { max-width: 100%; max-height: 420px; border-radius: 10px; border: 1px solid var(--borde); margin-top: 10px; display: block; }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .filtros button { border: 1px solid var(--borde); background: #fff; border-radius: 99px; padding: 6px 12px; font-size: 13px; font-weight: 600; }
+  .filtros button.activo { background: var(--tinta); color: #fff; border-color: var(--tinta); }
+  .grilla .celda { cursor: pointer !important; }
+  .grilla .celda:disabled { cursor: pointer; }
+  .detalle-num { margin-top: 12px; }
+  .fila-form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 520px) { .fila-form { grid-template-columns: 1fr; } }
+  h3 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 19px; margin: 0 0 12px; }
+  .total-recaudado { font-size: 12px; color: var(--suave); }
+  .login { max-width: 380px; margin: 60px auto; }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="v-login" class="oculto">
+  <main>
+    <form class="tarjeta login" id="form-login">
+      <div class="etiqueta" style="color:var(--acento)">Administración</div>
+      <h3 style="margin-top:6px">Ingresá a la tómbola</h3>
+      <div class="campo">
+        <label for="l-pass">Contraseña</label>
+        <input type="password" id="l-pass" autocomplete="current-password" required>
+      </div>
+      <div id="l-error"></div>
+      <button class="btn oscuro bloque" type="submit">Ingresar</button>
+    </form>
+  </main>
+</div>
+
+<!-- PANEL -->
+<div id="v-panel" class="oculto">
+  <header class="cabecera">
+    <div class="envoltura">
+      <div class="etiqueta">Panel de administración</div>
+      <h1 id="a-nombre">—</h1>
+      <div class="progreso">
+        <div class="barra"><div id="a-barra" style="width:0%"></div></div>
+      </div>
+      <div class="metricas">
+        <div class="metrica"><b id="m-vendidos">0</b><span>vendidos</span></div>
+        <div class="metrica"><b id="m-pendientes">0</b><span>a verificar</span></div>
+        <div class="metrica"><b id="m-reservados">0</b><span>reservados</span></div>
+        <div class="metrica"><b id="m-recaudado">$0</b><span>confirmado</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="a-avisos"></div>
+
+    <div class="pestanas" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="pend">Por verificar <span class="contador oculto" id="c-pend">0</span></button>
+      <button role="tab" aria-selected="false" data-tab="compras">Compras</button>
+      <button role="tab" aria-selected="false" data-tab="grilla">Grilla</button>
+      <button role="tab" aria-selected="false" data-tab="sorteo">Sorteo</button>
+      <button role="tab" aria-selected="false" data-tab="ajustes">Ajustes</button>
+    </div>
+
+    <section id="tab-pend"><div class="tarjeta" id="lista-pend"></div></section>
+
+    <section id="tab-compras" class="oculto">
+      <div class="tarjeta">
+        <div class="filtros" id="filtros">
+          <button data-f="todas" class="activo">Todas</button>
+          <button data-f="aprobada">Confirmadas</button>
+          <button data-f="pendiente">Por verificar</button>
+          <button data-f="reservada">Reservadas</button>
+          <button data-f="rechazada">Rechazadas</button>
+          <button data-f="vencida">Vencidas</button>
+        </div>
+        <input type="text" id="buscar" placeholder="Buscar por nombre, celular, código o número" style="margin-bottom:6px">
+        <div id="lista-compras"></div>
+      </div>
+    </section>
+
+    <section id="tab-grilla" class="oculto">
+      <div class="tarjeta">
+        <div class="grilla" id="a-grilla"></div>
+        <div class="leyenda">
+          <span><i></i>Libre</span>
+          <span><i class="reservado"></i>Reservado</span>
+          <span><i class="pendiente"></i>Por verificar</span>
+          <span><i class="pagado"></i>Vendido</span>
+        </div>
+        <div class="detalle-num" id="detalle-num"><p class="ayuda">Tocá un número para ver a quién pertenece.</p></div>
+      </div>
+    </section>
+
+    <section id="tab-sorteo" class="oculto">
+      <div class="tarjeta">
+        <h3>Resultado del sorteo</h3>
+        <p class="ayuda" style="margin-top:-6px;margin-bottom:14px">Cuando salga el resultado de Lotería Nacional, cargá el número ganador. Se mostrará a todos en la página de la tómbola.</p>
+        <form id="form-sorteo">
+          <div class="fila-form">
+            <div class="campo">
+              <label for="s-num">Número ganador (00–99)</label>
+              <input type="number" id="s-num" min="0" max="99" inputmode="numeric">
+            </div>
+            <div class="campo">
+              <label for="s-det">Detalle (opcional)</label>
+              <input type="text" id="s-det" placeholder="Ej: Quiniela Nacional Nocturna del 20/12, 2 últimas cifras">
+            </div>
+          </div>
+          <div id="s-ganador"></div>
+          <div class="acciones">
+            <button class="btn oscuro" type="submit">Publicar ganador</button>
+            <button class="btn secundario" type="button" id="s-borrar">Quitar resultado</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section id="tab-ajustes" class="oculto">
+      <form class="tarjeta" id="form-ajustes">
+        <h3>Datos de la tómbola</h3>
+        <div class="campo"><label for="c-nombre">Nombre</label><input type="text" id="c-nombre" maxlength="120"></div>
+        <div class="campo"><label for="c-premio">Premio</label><input type="text" id="c-premio" maxlength="200"></div>
+        <div class="fila-form">
+          <div class="campo"><label for="c-precio">Precio por número ($)</label><input type="number" id="c-precio" min="1"></div>
+          <div class="campo"><label for="c-min">Minutos de reserva</label><input type="number" id="c-min" min="2" max="120"></div>
+        </div>
+        <div class="fila-form">
+          <div class="campo"><label for="c-alias">Alias para transferir</label><input type="text" id="c-alias" maxlength="100"></div>
+          <div class="campo"><label for="c-titular">Titular de la cuenta</label><input type="text" id="c-titular" maxlength="100"></div>
+        </div>
+        <div class="campo"><label for="c-info">Texto del aviso de tómbola completa</label><textarea id="c-info" rows="2" maxlength="300"></textarea></div>
+        <div id="c-msg"></div>
+        <button class="btn oscuro" type="submit">Guardar cambios</button>
+        <p class="ayuda" style="margin-top:16px">Link para participantes: <b id="c-link"></b> <button class="copiar" type="button" id="c-copiar">Copiar</button></p>
+        <button class="btn link" type="button" id="salir" style="padding-left:0">Cerrar sesión</button>
+      </form>
+    </section>
+  </main>
+</div>
+
+<!-- Modal comprobante -->
+<div class="velo oculto" id="m-comp" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h2>Comprobante</h2>
+    <p class="sub" id="mc-sub"></p>
+    <div id="mc-cuerpo"></div>
+    <div class="acciones" id="mc-acciones"></div>
+    <button class="btn link bloque" type="button" data-cerrar>Cerrar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, '0');
+  const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-AR');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fecha = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const wa = (cel) => 'https://wa.me/549' + String(cel).replace(/\D/g, '');
+
+  let token = null;
+  try { token = localStorage.getItem('tombola_admin'); } catch {}
+  let datos = null;
+  let filtro = 'todas';
+  let pendAnterior = null;
+  let numSel = null;
+
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('visible'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('visible'), 2600); }
+
+  async function api(url, opts = {}) {
+    const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token, ...(opts.headers || {}) } });
+    if (res.status === 401) { salir(); throw new Error('Sesión vencida'); }
+    let data = null; try { data = await res.json(); } catch {}
+    if (!res.ok) throw new Error((data && data.error) || 'Error');
+    return data;
+  }
+
+  // ---------- Login ----------
+  function mostrar(vista) { $('#v-login').classList.toggle('oculto', vista !== 'login'); $('#v-panel').classList.toggle('oculto', vista !== 'panel'); }
+  function salir() { token = null; try { localStorage.removeItem('tombola_admin'); } catch {} mostrar('login'); }
+  $('#salir').addEventListener('click', salir);
+
+  $('#form-login').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      const res = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#l-pass').value }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error);
+      token = d.token; try { localStorage.setItem('tombola_admin', token); } catch {}
+      $('#l-pass').value = ''; $('#l-error').innerHTML = '';
+      iniciar();
+    } catch (e) { $('#l-error').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+  });
+
+  // ---------- Carga ----------
+  async function cargar() {
+    try { datos = await api('/api/admin/resumen'); pintar(); } catch (e) { if (token) toast(e.message); }
+  }
+
+  function pintar() {
+    const { config, compras, numeros } = datos;
+    const cuenta = (e) => numeros.filter((x) => x.e === e).length;
+    const vendidos = cuenta('pagado');
+    const pend = compras.filter((c) => c.estado === 'pendiente');
+    $('#a-nombre').textContent = config.nombre;
+    $('#a-barra').style.width = vendidos + '%';
+    $('#m-vendidos').textContent = vendidos + '/100';
+    $('#m-pendientes').textContent = cuenta('pendiente');
+    $('#m-reservados').textContent = cuenta('reservado');
+    $('#m-recaudado').textContent = pesos(compras.filter((c) => c.estado === 'aprobada').reduce((s, c) => s + c.numeros.length, 0) * config.precio);
+    $('#c-pend').textContent = pend.length; $('#c-pend').classList.toggle('oculto', !pend.length);
+    document.title = (pend.length ? `(${pend.length}) ` : '') + 'Administración · ' + config.nombre;
+
+    if (pendAnterior !== null && pend.length > pendAnterior) toast('Llegó un nuevo comprobante para verificar');
+    pendAnterior = pend.length;
+
+    // Avisos
+    let av = '';
+    if (vendidos === 100 && config.numero_ganador == null) av += `<div class="aviso completa"><span class="grande">¡Tómbola completa!</span>Se vendieron los 100 números. Ya podés realizar el sorteo y cargar el resultado en la pestaña Sorteo.</div>`;
+    else if (100 - vendidos - cuenta('pendiente') === 0 && vendidos < 100) av += `<div class="aviso info">Todos los números están tomados. Faltan verificar <b>${cuenta('pendiente')}</b> comprobantes para completar la tómbola.</div>`;
+    $('#a-avisos').innerHTML = av;
+
+    pintarPendientes(pend);
+    pintarCompras();
+    pintarGrilla();
+    if (!document.activeElement || !document.activeElement.closest('#form-ajustes')) llenarAjustes();
+    pintarGanador();
+  }
+
+  function tarjetaCompra(c, conAcciones) {
+    return `<div class="compra" data-id="${c.id}">
+      <div class="compra-cab"><span class="persona">${esc(c.nombre)}</span><span class="estado ${c.estado}">${{ reservada: 'Reservada', pendiente: 'Por verificar', aprobada: 'Confirmada', rechazada: 'Rechazada', vencida: 'Vencida' }[c.estado]}</span></div>
+      <div class="meta"><a href="${wa(c.celular)}" target="_blank" rel="noopener">WhatsApp ${esc(c.celular)}</a> · Código ${esc(c.codigo)} · ${fecha(c.created_at)}</div>
+      <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla${c.estado === 'aprobada' ? '' : ' clara'}">${pad(n)}</span>`).join('')}</div>
+      <div class="total-recaudado" style="margin-top:6px">${c.numeros.length} × ${pesos(datos.config.precio)} = <b>${pesos(c.numeros.length * datos.config.precio)}</b></div>
+      ${c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
+      <div class="acciones">
+        ${c.tiene_comprobante ? `<button class="btn secundario chico" data-ver="${c.id}">Ver comprobante</button>` : ''}
+        ${conAcciones && c.estado === 'pendiente' ? `<button class="btn verde chico" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario chico" data-rechazar="${c.id}">Rechazar</button>` : ''}
+        ${conAcciones && c.estado === 'aprobada' ? `<button class="btn link chico" data-rechazar="${c.id}">Anular</button>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function pintarPendientes(pend) {
+    $('#lista-pend').innerHTML = pend.length
+      ? pend.slice().reverse().map((c) => tarjetaCompra(c, true)).join('')
+      : '<div class="vacio">No hay comprobantes por verificar. 🎉</div>';
+  }
+
+  function pintarCompras() {
+    const q = $('#buscar').value.trim().toLowerCase();
+    const lista = datos.compras.filter((c) => (filtro === 'todas' || c.estado === filtro) &&
+      (!q || c.nombre.toLowerCase().includes(q) || c.celular.includes(q) || c.codigo.toLowerCase().includes(q) || c.numeros.some((n) => pad(n) === q.padStart(2, '0') && /^\d{1,2}$/.test(q))));
+    $('#lista-compras').innerHTML = lista.length ? lista.map((c) => tarjetaCompra(c, true)).join('') : '<div class="vacio">Sin resultados.</div>';
+  }
+  $('#filtros').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button'); if (!b) return;
+    filtro = b.dataset.f; document.querySelectorAll('#filtros button').forEach((x) => x.classList.toggle('activo', x === b)); pintarCompras();
+  });
+  $('#buscar').addEventListener('input', pintarCompras);
+
+  function pintarGrilla() {
+    const g = $('#a-grilla');
+    if (!g.children.length) for (let i = 0; i < 100; i++) { const b = document.createElement('button'); b.type = 'button'; b.className = 'celda'; b.dataset.n = i; b.textContent = pad(i); g.appendChild(b); }
+    datos.numeros.forEach((x) => {
+      g.children[x.n].className = 'celda' + (x.e === 'libre' ? '' : ' ' + x.e) + (x.n === numSel ? ' sel' : '') + (datos.config.numero_ganador === x.n ? ' ganadora' : '');
+    });
+    if (numSel !== null) detalleNumero(numSel);
+  }
+  function detalleNumero(n) {
+    const x = datos.numeros[n];
+    const txt = { libre: 'Libre', reservado: 'Reservado (esperando comprobante)', pendiente: 'Comprobante por verificar', pagado: 'Vendido' }[x.e];
+    $('#detalle-num').innerHTML = `<div class="aviso ${x.e === 'pagado' ? 'ok' : 'info'}"><b>Número ${pad(n)}</b> · ${txt}${x.nombre ? `<br>${esc(x.nombre)} · <a href="${wa(x.celular)}" target="_blank" rel="noopener">${esc(x.celular)}</a> · Código ${esc(x.codigo)}` : ''}</div>`;
+  }
+  $('#a-grilla').addEventListener('click', (ev) => { const b = ev.target.closest('.celda'); if (!b) return; numSel = Number(b.dataset.n); pintarGrilla(); });
+
+  // ---------- Acciones ----------
+  document.addEventListener('click', async (ev) => {
+    const t = ev.target.closest('[data-ver],[data-aprobar],[data-rechazar]'); if (!t) return;
+    if (t.dataset.ver) return verComprobante(t.dataset.ver);
+    if (t.dataset.aprobar) {
+      t.disabled = true;
+      try { await api('/api/admin/aprobar/' + t.dataset.aprobar, { method: 'POST' }); toast('Pago aprobado. Números confirmados.'); cerrarModal(); await cargar(); }
+      catch (e) { toast(e.message); t.disabled = false; }
+    }
+    if (t.dataset.rechazar) {
+      const c = datos.compras.find((x) => x.id === t.dataset.rechazar);
+      const nota = prompt(`${c.estado === 'aprobada' ? 'Anular' : 'Rechazar'} la compra de ${c.nombre}. Los números ${c.numeros.map(pad).join(', ')} quedarán libres.\n\nMotivo (lo verá el participante):`, c.estado === 'aprobada' ? 'Compra anulada' : 'No se verificó el pago');
+      if (nota === null) return;
+      try { await api('/api/admin/rechazar/' + c.id, { method: 'POST', body: JSON.stringify({ nota }) }); toast('Compra rechazada. Números liberados.'); cerrarModal(); await cargar(); }
+      catch (e) { toast(e.message); }
+    }
+  });
+
+  let urlComp = null;
+  async function verComprobante(id) {
+    const c = datos.compras.find((x) => x.id === id);
+    $('#mc-sub').textContent = `${c.nombre} · ${c.numeros.map(pad).join(', ')} · ${pesos(c.numeros.length * datos.config.precio)}`;
+    $('#mc-cuerpo').innerHTML = '<div class="vacio">Cargando…</div>';
+    $('#mc-acciones').innerHTML = c.estado === 'pendiente' ? `<button class="btn verde" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario" data-rechazar="${c.id}">Rechazar</button>` : '';
+    $('#m-comp').classList.remove('oculto');
+    try {
+      const res = await fetch('/api/admin/comprobante/' + id, { headers: { Authorization: 'Bearer ' + token } });
+      if (!res.ok) throw new Error('No se pudo cargar el comprobante');
+      const blob = await res.blob();
+      if (urlComp) URL.revokeObjectURL(urlComp);
+      urlComp = URL.createObjectURL(blob);
+      $('#mc-cuerpo').innerHTML = blob.type.startsWith('image/')
+        ? `<img class="comprobante-img" src="${urlComp}" alt="Comprobante"><a class="btn link" href="${urlComp}" target="_blank" rel="noopener">Abrir en tamaño completo</a>`
+        : `<div class="aviso info">El comprobante es un PDF.</div><a class="btn oscuro" href="${urlComp}" target="_blank" rel="noopener">Abrir PDF</a>`;
+    } catch (e) { $('#mc-cuerpo').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+  }
+  function cerrarModal() { $('#m-comp').classList.add('oculto'); }
+  document.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', cerrarModal));
+
+  // ---------- Ajustes ----------
+  function llenarAjustes() {
+    const c = datos.config;
+    $('#c-nombre').value = c.nombre; $('#c-premio').value = c.premio; $('#c-precio').value = c.precio;
+    $('#c-min').value = c.minutos_reserva; $('#c-alias').value = c.alias; $('#c-titular').value = c.titular || ''; $('#c-info').value = c.info_sorteo;
+  }
+  $('#form-ajustes').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    try {
+      await api('/api/admin/config', { method: 'POST', body: JSON.stringify({
+        nombre: $('#c-nombre').value, premio: $('#c-premio').value, precio: $('#c-precio').value, minutos_reserva: $('#c-min').value,
+        alias: $('#c-alias').value, titular: $('#c-titular').value, info_sorteo: $('#c-info').value }) });
+      $('#c-msg').innerHTML = '<div class="aviso ok">Cambios guardados.</div>'; setTimeout(() => ($('#c-msg').innerHTML = ''), 2500);
+      document.activeElement.blur(); await cargar();
+    } catch (e) { $('#c-msg').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
+  });
+  $('#c-link').textContent = location.origin + '/';
+  $('#c-copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.origin + '/'); toast('Link copiado'); } catch { toast(location.origin + '/'); } });
+
+  // ---------- Sorteo ----------
+  function pintarGanador() {
+    const c = datos.config;
+    if (document.activeElement !== $('#s-num') && document.activeElement !== $('#s-det')) {
+      $('#s-num').value = c.numero_ganador ?? ''; $('#s-det').value = c.detalle_ganador || '';
+    }
+    if (c.numero_ganador == null) { $('#s-ganador').innerHTML = ''; return; }
+    const x = datos.numeros[c.numero_ganador];
+    $('#s-ganador').innerHTML = x.e === 'pagado'
+      ? `<div class="aviso ganador"><span class="grande">Ganador: ${pad(x.n)}</span>${esc(x.nombre)} · <a href="${wa(x.celular)}" target="_blank" rel="noopener" style="color:inherit">${esc(x.celular)}</a> · Código ${esc(x.codigo)}</div>`
+      : `<div class="aviso error">El número ${pad(x.n)} no está vendido.</div>`;
+  }
+  $('#form-sorteo').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const n = $('#s-num').value;
+    if (n === '') return toast('Ingresá el número ganador');
+    const vendidos = datos.numeros.filter((x) => x.e === 'pagado').length;
+    if (vendidos < 100 && !confirm(`La tómbola todavía no está completa (${vendidos}/100). ¿Publicar el ganador igual?`)) return;
+    try { await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ numero_ganador: n, detalle_ganador: $('#s-det').value }) }); document.activeElement.blur(); toast('Ganador publicado'); await cargar(); }
+    catch (e) { toast(e.message); }
+  });
+  $('#s-borrar').addEventListener('click', async () => {
+    if (!confirm('¿Quitar el resultado publicado?')) return;
+    try { await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ numero_ganador: null, detalle_ganador: null }) }); toast('Resultado quitado'); await cargar(); }
+    catch (e) { toast(e.message); }
+  });
+
+  // ---------- Pestañas ----------
+  document.querySelectorAll('.pestanas button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.pestanas button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    ['pend', 'compras', 'grilla', 'sorteo', 'ajustes'].forEach((t) => $('#tab-' + t).classList.toggle('oculto', t !== b.dataset.tab));
+  }));
+
+  // ---------- Inicio ----------
+  let timer = null;
+  function iniciar() { mostrar('panel'); cargar(); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) cargar(); }, 15000); }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && token) cargar(); });
+  token ? iniciar() : mostrar('login');
+})();
+</script>
+</body>
+</html>
