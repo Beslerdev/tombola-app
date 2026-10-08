@@ -160,6 +160,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/dialogo.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -488,7 +489,8 @@
 
   $('#p-cancelar').addEventListener('click', async () => {
     if (!reserva) { cerrar('#m-pago'); return; }
-    if (!confirm('¿Cancelar la reserva y liberar los números?')) return;
+    const ok = await preguntar({ titulo: '¿Cancelar la reserva?', texto: `Los números ${reserva.numeros.map(pad).join(', ')} quedarán libres para otras personas.`, si: 'Sí, cancelar', no: 'Seguir con el pago', peligro: true });
+    if (!ok || !reserva) return;
     try { await api('/api/cancelar', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular }) }); } catch {}
     reserva.numeros.forEach((n) => misNumeros.delete(n)); LS.set('tombola_mis_numeros', [...misNumeros]);
     finReserva(true);

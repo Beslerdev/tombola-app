@@ -173,6 +173,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="/dialogo.js"></script>
 <script>
 (() => {
   const $ = (s) => document.querySelector(s);
@@ -307,7 +308,7 @@
     if (t.dataset.ver) return verComprobante(t.dataset.ver);
     if (t.dataset.devuelta) {
       const c = datos.compras.find((x) => x.id === t.dataset.devuelta);
-      if (!confirm(`¿Confirmás que ya le devolviste ${pesos(c.monto)} a ${c.nombre}? (Lo podés hacer desde la actividad de Mercado Pago, en la operación ${c.mp_payment_id || ''}.)`)) return;
+      if (!(await preguntar({ titulo: '¿Ya devolviste el dinero?', texto: `${pesos(c.monto)} a ${c.nombre}.\nLo podés devolver desde la actividad de Mercado Pago${c.mp_payment_id ? ', operación ' + c.mp_payment_id : ''}.`, si: 'Sí, ya lo devolví' }))) return;
       try { await api('/api/admin/devuelta/' + c.id, { method: 'POST' }); toast('Marcada como devuelta'); await cargar(); } catch (e) { toast(e.message); }
       return;
     }
@@ -318,7 +319,13 @@
     }
     if (t.dataset.rechazar) {
       const c = datos.compras.find((x) => x.id === t.dataset.rechazar);
-      const nota = prompt(`${c.estado === 'aprobada' ? 'Anular' : 'Rechazar'} la compra de ${c.nombre}. Los números ${c.numeros.map(pad).join(', ')} quedarán libres.\n\nMotivo (lo verá el participante):`, c.estado === 'aprobada' ? 'Compra anulada' : 'No se verificó el pago');
+      const anular = c.estado === 'aprobada';
+      const nota = await preguntar({
+        titulo: `${anular ? 'Anular' : 'Rechazar'} la compra de ${c.nombre}`,
+        texto: `Los números ${c.numeros.map(pad).join(', ')} quedarán libres.${anular && c.mp_payment_id ? '\nRecordá devolver el pago desde Mercado Pago.' : ''}`,
+        campo: 'Motivo (lo verá el participante)', valor: anular ? 'Compra anulada' : 'No se verificó el pago',
+        si: anular ? 'Anular compra' : 'Rechazar', peligro: true,
+      });
       if (nota === null) return;
       try { await api('/api/admin/rechazar/' + c.id, { method: 'POST', body: JSON.stringify({ nota }) }); toast('Compra rechazada. Números liberados.'); cerrarModal(); await cargar(); }
       catch (e) { toast(e.message); }
@@ -382,12 +389,12 @@
     const n = $('#s-num').value;
     if (n === '') return toast('Ingresá el número ganador');
     const vendidos = datos.numeros.filter((x) => x.e === 'pagado').length;
-    if (vendidos < 100 && !confirm(`La tómbola todavía no está completa (${vendidos}/100). ¿Publicar el ganador igual?`)) return;
+    if (vendidos < 100 && !(await preguntar({ titulo: 'La tómbola no está completa', texto: `Hay ${vendidos} de 100 números vendidos. ¿Publicar el ganador igual?`, si: 'Publicar igual' }))) return;
     try { await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ numero_ganador: n, detalle_ganador: $('#s-det').value }) }); document.activeElement.blur(); toast('Ganador publicado'); await cargar(); }
     catch (e) { toast(e.message); }
   });
   $('#s-borrar').addEventListener('click', async () => {
-    if (!confirm('¿Quitar el resultado publicado?')) return;
+    if (!(await preguntar({ titulo: '¿Quitar el resultado publicado?', texto: 'El número ganador deja de mostrarse en la página.', si: 'Quitar', peligro: true }))) return;
     try { await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ numero_ganador: null, detalle_ganador: null }) }); toast('Resultado quitado'); await cargar(); }
     catch (e) { toast(e.message); }
   });

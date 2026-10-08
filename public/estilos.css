@@ -157,6 +157,10 @@ main { max-width: 720px; margin: 0 auto; padding: 16px 16px 120px; }
 .btn.oscuro:hover { background: var(--tinta-2); }
 .btn.verde { background: var(--ok); }
 .btn.verde:hover { background: #18714a; }
+.velo.dialogo { z-index: 70; align-items: center; padding: 20px; }
+.velo.dialogo .modal { border-radius: 18px; max-width: 400px; }
+.velo.dialogo .botones { display: flex; gap: 8px; margin-top: 16px; }
+.velo.dialogo .botones .btn { flex: 1; }
 .btn.mp { background: #009ee3; font-size: 16px; padding: 14px 18px; }
 .btn.mp:hover { background: #0084c0; }
 .estado.excepcion { background: var(--err-bg); color: var(--err); }
