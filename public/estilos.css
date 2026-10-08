@@ -157,6 +157,10 @@ main { max-width: 720px; margin: 0 auto; padding: 16px 16px 120px; }
 .btn.oscuro:hover { background: var(--tinta-2); }
 .btn.verde { background: var(--ok); }
 .btn.verde:hover { background: #18714a; }
+.btn.mp { background: #009ee3; font-size: 16px; padding: 14px 18px; }
+.btn.mp:hover { background: #0084c0; }
+.estado.excepcion { background: var(--err-bg); color: var(--err); }
+.estado.devuelta { background: #eceff3; color: var(--suave); }
 .btn.chico { padding: 8px 12px; font-size: 13.5px; border-radius: 9px; }
 .btn.bloque { width: 100%; }
 .btn.link { background: transparent; color: var(--tinta-2); text-decoration: underline; padding: 8px; }

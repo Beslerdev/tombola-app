@@ -21,6 +21,14 @@ App web (celular y PC) para vender los 100 números de una tómbola.
 | `DB_API_KEY` | Clave del servidor (su hash está en `app_secret`) |
 | `ADMIN_PASSWORD` | Contraseña del panel `/admin` |
 | `TOKEN_SECRET` | Secreto para firmar la sesión del admin |
+| `MP_ACCESS_TOKEN` | Access Token de producción de Mercado Pago. Si está, el pago es con Checkout Pro y se confirma solo; si no, se usa transferencia + comprobante |
+
+## Pagos con Mercado Pago
+
+1. Al reservar se crea una preferencia de Checkout Pro con `external_reference` = id de la compra y vencimiento igual al de la reserva (sin Rapipago/Pago Fácil, `binary_mode`).
+2. Mercado Pago notifica a `/api/mp/webhook`; el servidor **consulta el pago a la API de MP** (no confía en el aviso) y si está aprobado confirma los números.
+3. Al volver del checkout, la página consulta `/api/pago/estado` como respaldo del webhook.
+4. Si el pago llega tarde y el número ya fue tomado, o el monto no coincide, la compra queda en estado `excepcion` para que el admin devuelva el dinero.
 
 ## Local
 

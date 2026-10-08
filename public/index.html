@@ -103,16 +103,22 @@
 <div class="velo oculto" id="m-pago" role="dialog" aria-modal="true" aria-labelledby="m-pago-t">
   <div class="modal">
     <h2 id="m-pago-t">Completá el pago</h2>
-    <p class="sub">Tus números están reservados. Transferí y subí el comprobante antes de que termine el tiempo.</p>
+    <p class="sub" id="p-sub">Tus números están reservados. Pagá antes de que termine el tiempo.</p>
     <div class="reloj" id="p-reloj">--:--</div>
     <div class="reloj-sub">tiempo restante de reserva</div>
     <div class="bolillas" id="p-bolillas"></div>
     <div class="caja-pago">
-      <div class="fila"><span>Total a transferir</span><span class="total" id="p-total">$0</span></div>
-      <div class="fila"><span>Alias</span><span class="valor"><span id="p-alias">—</span><button class="copiar" type="button" id="p-copiar">Copiar</button></span></div>
+      <div class="fila"><span>Total a pagar</span><span class="total" id="p-total">$0</span></div>
+      <div class="fila p-manual"><span>Alias</span><span class="valor"><span id="p-alias">—</span><button class="copiar" type="button" id="p-copiar">Copiar</button></span></div>
       <div class="fila oculto" id="p-fila-titular"><span>Titular</span><span class="valor" id="p-titular"></span></div>
       <div class="fila"><span>Código de reserva</span><span class="valor" id="p-codigo">—</span></div>
     </div>
+    <div id="p-online" class="oculto">
+      <div id="p-error-online"></div>
+      <button class="btn bloque mp" id="p-mp" type="button">Pagar con Mercado Pago</button>
+      <p class="ayuda" style="text-align:center;margin:8px 0 0">Dinero en cuenta de Mercado Pago, tarjeta de débito o crédito.<br>Pago seguro procesado por Mercado Pago.</p>
+    </div>
+    <div class="p-manual">
     <label class="subida" id="p-subida">
       <input type="file" id="p-archivo" accept="image/*,application/pdf">
       <span class="icono">📎</span>
@@ -123,6 +129,7 @@
     </label>
     <div id="p-error" style="margin-top:12px"></div>
     <button class="btn bloque" id="p-enviar" type="button" style="margin-top:14px" disabled>Enviar comprobante</button>
+    </div>
     <button class="btn link bloque" id="p-cancelar" type="button">Cancelar reserva</button>
   </div>
 </div>
@@ -136,6 +143,18 @@
     <div class="bolillas" id="l-bolillas" style="justify-content:center;margin-bottom:18px"></div>
     <button class="btn oscuro bloque" type="button" id="l-ver">Ver mis números</button>
     <button class="btn link bloque" type="button" data-cerrar>Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal resultado de pago online -->
+<div class="velo oculto" id="m-resultado" role="dialog" aria-modal="true" aria-labelledby="r-titulo">
+  <div class="modal" style="text-align:center">
+    <div style="font-size:48px" id="r-icono">⏳</div>
+    <h2 id="r-titulo">Verificando tu pago…</h2>
+    <p class="sub" id="r-texto">Esto tarda unos segundos.</p>
+    <div class="bolillas" id="r-bolillas" style="justify-content:center;margin-bottom:12px"></div>
+    <p class="ayuda" id="r-codigo" style="margin-bottom:18px"></p>
+    <div id="r-acciones"></div>
   </div>
 </div>
 
@@ -153,6 +172,7 @@
   };
 
   let config = null;
+  let pagosOnline = false;
   let numeros = [];
   let desfase = 0; // servidor - cliente (ms)
   const seleccion = new Set();
@@ -184,7 +204,7 @@
   async function cargar() {
     try {
       const d = await api('/api/estado');
-      config = d.config; numeros = d.numeros;
+      config = d.config; numeros = d.numeros; pagosOnline = !!d.pagosOnline;
       desfase = new Date(d.ahora).getTime() - Date.now();
       pintarCabecera(); pintarGrilla(); pintarAvisos(); pintarBarra();
     } catch (e) {
@@ -278,7 +298,7 @@
       const nombre = $('#d-nombre').value.trim();
       const r = await api('/api/reservar', { method: 'POST', body: JSON.stringify({ numeros: nums, nombre, celular: $('#d-cel').value }) });
       LS.set('tombola_nombre', nombre); LS.set('tombola_celular', r.celular);
-      reserva = { id: r.id, codigo: r.codigo, numeros: r.numeros, hasta: r.reservado_hasta, celular: r.celular, precio: config.precio };
+      reserva = { id: r.id, codigo: r.codigo, numeros: r.numeros, hasta: r.reservado_hasta, celular: r.celular, precio: config.precio, monto: r.monto };
       LS.set('tombola_reserva', reserva);
       recordarMios(r.numeros);
       seleccion.clear();
@@ -305,7 +325,13 @@
   function abrirPago() {
     if (!reserva) return;
     bolillas($('#p-bolillas'), reserva.numeros);
-    $('#p-total').textContent = pesos(reserva.numeros.length * (reserva.precio || config.precio));
+    $('#p-total').textContent = pesos(reserva.monto || reserva.numeros.length * (reserva.precio || config.precio));
+    document.querySelectorAll('.p-manual').forEach((el) => el.classList.toggle('oculto', pagosOnline));
+    $('#p-online').classList.toggle('oculto', !pagosOnline);
+    $('#p-sub').textContent = pagosOnline
+      ? 'Tus números están reservados. Pagá antes de que termine el tiempo y quedan confirmados al instante.'
+      : 'Tus números están reservados. Transferí y subí el comprobante antes de que termine el tiempo.';
+    aviso($('#p-error-online'), '', '');
     $('#p-alias').textContent = config.alias;
     $('#p-titular').textContent = config.titular || '';
     $('#p-fila-titular').classList.toggle('oculto', !config.titular);
@@ -338,6 +364,78 @@
     $('#p-enviar').disabled = true;
     if (cerrarModal) { clearInterval(relojTimer); cerrar('#m-pago'); }
     cargar();
+  }
+
+  $('#p-mp').addEventListener('click', async () => {
+    if (!reserva || !reservaActiva()) return;
+    const btn = $('#p-mp'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Abriendo Mercado Pago…';
+    try {
+      const r = await api('/api/pago/crear', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular }) });
+      location.href = r.url;
+    } catch (e) {
+      aviso($('#p-error-online'), 'error', esc(e.message));
+      btn.disabled = false; btn.textContent = 'Pagar con Mercado Pago';
+    }
+  });
+
+  // ---------- Vuelta desde Mercado Pago ----------
+  async function verificarRetorno() {
+    const q = new URLSearchParams(location.search);
+    const c = q.get('c') || q.get('external_reference');
+    if (!q.get('pago') || !c) return false;
+    const paymentId = q.get('payment_id') || q.get('collection_id') || '';
+    history.replaceState(null, '', '/');
+    clearInterval(relojTimer); cerrar('#m-pago');
+    const titulo = $('#r-titulo'), texto = $('#r-texto'), icono = $('#r-icono'), acc = $('#r-acciones');
+    icono.textContent = '⏳'; titulo.textContent = 'Verificando tu pago…'; texto.textContent = 'Esto tarda unos segundos. No cierres esta página.';
+    $('#r-bolillas').innerHTML = ''; $('#r-codigo').textContent = ''; acc.innerHTML = '';
+    abrir('#m-resultado');
+    const inicio = Date.now();
+    let d = null;
+    while (Date.now() - inicio < 90_000) {
+      try {
+        d = await api(`/api/pago/estado?c=${encodeURIComponent(c)}${paymentId ? '&payment_id=' + encodeURIComponent(paymentId) : ''}`);
+        if (['aprobada', 'excepcion', 'devuelta'].includes(d.estado)) break;
+        if (d.estadoMp === 'rejected' || d.estadoMp === 'cancelled' || q.get('pago') === 'fallo') break;
+      } catch {}
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    if (d) { bolillas($('#r-bolillas'), d.numeros); $('#r-codigo').textContent = 'Código de compra: ' + d.codigo; }
+    if (d && d.estado === 'aprobada') {
+      icono.textContent = '🎉'; titulo.textContent = '¡Pago exitoso!';
+      texto.textContent = 'Tus números quedaron confirmados a tu nombre. ¡Mucha suerte en el sorteo!';
+      if (d.celular) LS.set('tombola_celular', d.celular);
+      recordarMios(d.numeros);
+      if (reserva && reserva.id === c) { reserva = null; LS.del('tombola_reserva'); }
+      acc.innerHTML = '<button class="btn oscuro bloque" data-ver-mios>Ver mis números</button><button class="btn link bloque" data-cerrar-r>Cerrar</button>';
+    } else if (d && d.estado === 'excepcion') {
+      icono.textContent = '⚠️'; titulo.textContent = 'Recibimos tu pago, pero…';
+      texto.textContent = (d.nota || 'Hubo un problema con tu reserva.') .replace('Devolver el dinero.', '') + ' El organizador te va a devolver el dinero. Si querés, podés elegir otros números.';
+      if (reserva && reserva.id === c) { reserva = null; LS.del('tombola_reserva'); }
+      acc.innerHTML = '<button class="btn oscuro bloque" data-cerrar-r>Entendido</button>';
+    } else if (d && d.estado === 'reservada' && new Date(d.reservado_hasta).getTime() > ahora()) {
+      icono.textContent = '↩️'; titulo.textContent = 'El pago no se completó';
+      texto.textContent = 'No se cobró nada. Tus números siguen reservados unos minutos más: podés intentar de nuevo con otro medio de pago.';
+      acc.innerHTML = '<button class="btn bloque" data-reintentar>Intentar de nuevo</button><button class="btn link bloque" data-cerrar-r>Cerrar</button>';
+    } else if (d && d.estadoMp && !['rejected', 'cancelled'].includes(d.estadoMp)) {
+      icono.textContent = '⏳'; titulo.textContent = 'Tu pago está en proceso';
+      texto.textContent = 'Mercado Pago todavía lo está procesando. Cuando se acredite, tus números se confirman solos. Podés consultarlo en "Mis números".';
+      acc.innerHTML = '<button class="btn oscuro bloque" data-ver-mios>Ver mis números</button>';
+    } else {
+      icono.textContent = '⌛'; titulo.textContent = 'El pago no se completó';
+      texto.textContent = 'No se cobró nada y la reserva ya venció. Podés volver a elegir números.';
+      if (reserva && reserva.id === c) { reserva = null; LS.del('tombola_reserva'); }
+      acc.innerHTML = '<button class="btn oscuro bloque" data-cerrar-r>Elegir números</button>';
+    }
+    acc.querySelectorAll('[data-cerrar-r]').forEach((b) => b.addEventListener('click', () => cerrar('#m-resultado')));
+    acc.querySelectorAll('[data-ver-mios]').forEach((b) => b.addEventListener('click', () => { cerrar('#m-resultado'); irTab('mios'); verMios(LS.get('tombola_celular')); }));
+    acc.querySelectorAll('[data-reintentar]').forEach((b) => b.addEventListener('click', () => {
+      cerrar('#m-resultado');
+      if (!reserva || reserva.id !== c) reserva = { id: c, codigo: d.codigo, numeros: d.numeros, hasta: d.reservado_hasta, celular: d.celular, monto: d.monto };
+      LS.set('tombola_reserva', reserva); abrirPago();
+    }));
+    cargar();
+    return true;
   }
 
   $('#p-copiar').addEventListener('click', async () => {
@@ -409,7 +507,7 @@
   }
   document.querySelectorAll('.pestanas button').forEach((b) => b.addEventListener('click', () => irTab(b.dataset.tab)));
 
-  const TXT = { reservada: 'Reservado · falta comprobante', pendiente: 'En verificación', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida' };
+  const TXT = { reservada: 'Reservado · falta pagar', pendiente: 'En verificación', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida', excepcion: 'Pago a devolver', devuelta: 'Pago devuelto' };
 
   async function verMios(cel) {
     if (!cel) return;
@@ -431,7 +529,7 @@
             <span class="cod">Código ${esc(c.codigo)} · ${new Date(c.created_at).toLocaleDateString('es-AR')}</span>
           </div>
           <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla clara">${pad(n)}</span>`).join('')}</div>
-          ${c.estado === 'rechazada' && c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
+          ${['rechazada', 'excepcion'].includes(c.estado) && c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
           ${c.estado === 'reservada' && reserva && reserva.id === c.id ? '<button class="btn chico" style="margin-top:10px" data-pagar>Completar pago</button>' : ''}
         </div>`).join('');
       cont.innerHTML = html;
@@ -441,7 +539,7 @@
   $('#form-mios').addEventListener('submit', (ev) => { ev.preventDefault(); verMios($('#mios-cel').value); });
 
   // ---------- Inicio ----------
-  cargar().then(() => { if (reserva) { if (reservaActiva()) abrirPago(); else { reserva = null; LS.del('tombola_reserva'); } } });
+  cargar().then(async () => { if (await verificarRetorno()) return; if (reserva) { if (reservaActiva()) abrirPago(); else { reserva = null; LS.del('tombola_reserva'); } } });
   setInterval(() => { if (!document.hidden) cargar(); }, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
 })();

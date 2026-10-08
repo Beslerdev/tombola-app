@@ -9,8 +9,11 @@ const {
   DB_API_KEY,
   ADMIN_PASSWORD,
   TOKEN_SECRET,
+  MP_ACCESS_TOKEN,
   PORT = 3000,
 } = process.env;
+const PUBLIC_URL = (process.env.PUBLIC_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const pagosOnline = () => Boolean(MP_ACCESS_TOKEN);
 
 for (const [k, v] of Object.entries({ SUPABASE_URL, SUPABASE_ANON_KEY, DB_API_KEY, ADMIN_PASSWORD, TOKEN_SECRET })) {
   if (!v) { console.error(`Falta la variable de entorno ${k}`); process.exit(1); }
@@ -57,6 +60,7 @@ function enviarError(res, e) {
     return res.status(409).json({ error: MENSAJES.NO_DISPONIBLE, ocupados });
   }
   if (MENSAJES[codigo]) return res.status(400).json({ error: MENSAJES[codigo] });
+  if (e.status === 502) return res.status(502).json({ error: msg });
   console.error(e);
   res.status(500).json({ error: 'Ocurrió un error. Probá de nuevo en unos segundos.' });
 }
@@ -78,7 +82,119 @@ const UUID = /^[0-9a-f-]{36}$/i;
 // ---------- API pública ----------
 app.get('/api/estado', wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json(await rpc('api_estado'));
+  res.json({ ...(await rpc('api_estado')), pagosOnline: pagosOnline() });
+}));
+
+// ---------- Mercado Pago ----------
+async function mp(pathname, opts = {}) {
+  const res = await fetch(`${process.env.MP_API_BASE || 'https://api.mercadopago.com'}${pathname}`, {
+    ...opts,
+    headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    console.error('Mercado Pago', res.status, pathname, JSON.stringify(data));
+    const e = new Error('No pudimos conectar con Mercado Pago. Probá de nuevo.');
+    e.status = 502;
+    throw e;
+  }
+  return data;
+}
+
+// Procesa un pago de MP (siempre consultado a la API de MP, nunca confiando en lo que llega del navegador)
+async function procesarPago(paymentId) {
+  const p = await mp(`/v1/payments/${encodeURIComponent(paymentId)}`);
+  const compra = UUID.test(p.external_reference || '') ? p.external_reference : null;
+  if (!compra) return { estado: p.status, resultado: 'sin_compra' };
+  if (p.status === 'approved') {
+    const resultado = await rpc('api_registrar_pago', {
+      p_compra: compra, p_payment_id: String(p.id), p_monto: p.transaction_amount, p_metodo: p.payment_method_id || p.payment_type_id || null,
+    });
+    return { estado: p.status, resultado, compra };
+  }
+  await rpc('api_registrar_evento_pago', {
+    p_payment_id: String(p.id), p_compra: compra, p_monto: p.transaction_amount, p_estado: p.status, p_metodo: p.payment_method_id || null,
+  });
+  return { estado: p.status, compra };
+}
+
+app.post('/api/pago/crear', wrap(async (req, res) => {
+  if (!pagosOnline()) return res.status(503).json({ error: 'Los pagos online todavía no están configurados.' });
+  const { compraId } = req.body || {};
+  const celular = normCelular(req.body && req.body.celular);
+  if (!UUID.test(compraId || '')) return res.status(400).json({ error: 'Reserva inválida' });
+  const c = await rpc('api_compra', { p_compra: compraId });
+  if (!c || c.celular !== celular) return res.status(404).json({ error: 'No encontramos esa reserva' });
+  if (c.estado !== 'reservada') return res.status(400).json({ error: 'La reserva ya no está activa. Elegí los números de nuevo.' });
+  const { config } = await rpc('api_estado');
+  const lista = c.numeros.map((n) => String(n).padStart(2, '0')).join(', ');
+  const vence = new Date(Math.max(new Date(c.reservado_hasta).getTime(), Date.now() + 60_000));
+  const pref = await mp('/checkout/preferences', {
+    method: 'POST',
+    headers: { 'X-Idempotency-Key': `${c.id}-${c.reservado_hasta}` },
+    body: JSON.stringify({
+      items: [{
+        id: c.codigo,
+        title: `${config.nombre} – ${c.numeros.length === 1 ? 'número' : 'números'} ${lista}`.slice(0, 250),
+        description: `Premio: ${config.premio}`.slice(0, 250),
+        quantity: 1,
+        unit_price: Number(c.monto),
+        currency_id: 'ARS',
+      }],
+      payer: { name: c.nombre },
+      external_reference: c.id,
+      notification_url: `${PUBLIC_URL}/api/mp/webhook`,
+      back_urls: {
+        success: `${PUBLIC_URL}/?pago=ok&c=${c.id}`,
+        failure: `${PUBLIC_URL}/?pago=fallo&c=${c.id}`,
+        pending: `${PUBLIC_URL}/?pago=pendiente&c=${c.id}`,
+      },
+      auto_return: 'approved',
+      binary_mode: true,
+      statement_descriptor: 'TOMBOLA',
+      payment_methods: { excluded_payment_types: [{ id: 'ticket' }, { id: 'atm' }] },
+      expires: true,
+      expiration_date_from: new Date(Date.now() - 60_000).toISOString(),
+      expiration_date_to: vence.toISOString(),
+    }),
+  });
+  res.json({ url: pref.init_point });
+}));
+
+// Notificaciones de Mercado Pago (webhook e IPN)
+app.post('/api/mp/webhook', async (req, res) => {
+  res.sendStatus(200);
+  try {
+    const tipo = req.query.type || req.query.topic || (req.body && (req.body.type || req.body.topic));
+    const id = req.query['data.id'] || req.query.id || (req.body && req.body.data && req.body.data.id);
+    if (!pagosOnline() || tipo !== 'payment' || !id) return;
+    const r = await procesarPago(id);
+    console.log('Webhook MP', id, r.estado, r.resultado || '');
+  } catch (e) { console.error('Webhook MP error', e.message); }
+});
+
+// Verificación al volver de Mercado Pago (respaldo del webhook)
+app.get('/api/pago/estado', wrap(async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const compraId = String(req.query.c || '');
+  if (!UUID.test(compraId)) return res.status(400).json({ error: 'Reserva inválida' });
+  let estadoMp = null;
+  if (pagosOnline()) {
+    const paymentId = String(req.query.payment_id || '').replace(/\D/g, '');
+    if (paymentId) {
+      const r = await procesarPago(paymentId);
+      if (r.compra === compraId) estadoMp = r.estado;
+    } else {
+      const s = await mp(`/v1/payments/search?external_reference=${compraId}&sort=date_created&criteria=desc&limit=10`);
+      for (const p of (s.results || [])) {
+        if (p.status === 'approved') { await procesarPago(p.id); estadoMp = 'approved'; break; }
+        if (!estadoMp) estadoMp = p.status;
+      }
+    }
+  }
+  const c = await rpc('api_compra', { p_compra: compraId });
+  if (!c) return res.status(404).json({ error: 'No encontramos esa reserva' });
+  res.json({ estado: c.estado, estadoMp, codigo: c.codigo, numeros: c.numeros, monto: c.monto, reservado_hasta: c.reservado_hasta, celular: c.celular, nota: c.nota_admin });
 }));
 
 app.post('/api/reservar', wrap(async (req, res) => {
@@ -163,7 +279,7 @@ app.get('/api/admin/resumen', soloAdmin, wrap(async (req, res) => {
   const [estado, compras, numeros] = await Promise.all([
     rpc('api_estado'), rpc('api_admin_compras'), rpc('api_admin_numeros'),
   ]);
-  res.json({ config: estado.config, ahora: estado.ahora, compras, numeros });
+  res.json({ config: estado.config, ahora: estado.ahora, compras, numeros, pagosOnline: pagosOnline() });
 }));
 
 app.get('/api/admin/comprobante/:id', soloAdmin, wrap(async (req, res) => {
@@ -185,6 +301,12 @@ app.post('/api/admin/rechazar/:id', soloAdmin, wrap(async (req, res) => {
   if (!UUID.test(req.params.id)) return res.status(400).json({ error: 'Id inválido' });
   const nota = String((req.body && req.body.nota) || '').slice(0, 300);
   await rpc('api_admin_rechazar', { p_compra: req.params.id, p_nota: nota });
+  res.json({ ok: true });
+}));
+
+app.post('/api/admin/devuelta/:id', soloAdmin, wrap(async (req, res) => {
+  if (!UUID.test(req.params.id)) return res.status(400).json({ error: 'Id inválido' });
+  await rpc('api_admin_marcar_devuelta', { p_compra: req.params.id });
   res.json({ ok: true });
 }));
 

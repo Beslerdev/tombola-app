@@ -64,7 +64,7 @@
       </div>
       <div class="metricas">
         <div class="metrica"><b id="m-vendidos">0</b><span>vendidos</span></div>
-        <div class="metrica"><b id="m-pendientes">0</b><span>a verificar</span></div>
+        <div class="metrica"><b id="m-pendientes">0</b><span>requieren atención</span></div>
         <div class="metrica"><b id="m-reservados">0</b><span>reservados</span></div>
         <div class="metrica"><b id="m-recaudado">$0</b><span>confirmado</span></div>
       </div>
@@ -75,7 +75,7 @@
     <div id="a-avisos"></div>
 
     <div class="pestanas" role="tablist">
-      <button role="tab" aria-selected="true" data-tab="pend">Por verificar <span class="contador oculto" id="c-pend">0</span></button>
+      <button role="tab" aria-selected="true" data-tab="pend">Atención <span class="contador oculto" id="c-pend">0</span></button>
       <button role="tab" aria-selected="false" data-tab="compras">Compras</button>
       <button role="tab" aria-selected="false" data-tab="grilla">Grilla</button>
       <button role="tab" aria-selected="false" data-tab="sorteo">Sorteo</button>
@@ -91,6 +91,7 @@
           <button data-f="aprobada">Confirmadas</button>
           <button data-f="pendiente">Por verificar</button>
           <button data-f="reservada">Reservadas</button>
+          <button data-f="excepcion">A devolver</button>
           <button data-f="rechazada">Rechazadas</button>
           <button data-f="vencida">Vencidas</button>
         </div>
@@ -224,21 +225,22 @@
     const { config, compras, numeros } = datos;
     const cuenta = (e) => numeros.filter((x) => x.e === e).length;
     const vendidos = cuenta('pagado');
-    const pend = compras.filter((c) => c.estado === 'pendiente');
+    const pend = compras.filter((c) => c.estado === 'pendiente' || c.estado === 'excepcion');
     $('#a-nombre').textContent = config.nombre;
     $('#a-barra').style.width = vendidos + '%';
     $('#m-vendidos').textContent = vendidos + '/100';
-    $('#m-pendientes').textContent = cuenta('pendiente');
+    $('#m-pendientes').textContent = pend.length;
     $('#m-reservados').textContent = cuenta('reservado');
     $('#m-recaudado').textContent = pesos(compras.filter((c) => c.estado === 'aprobada').reduce((s, c) => s + c.numeros.length, 0) * config.precio);
     $('#c-pend').textContent = pend.length; $('#c-pend').classList.toggle('oculto', !pend.length);
     document.title = (pend.length ? `(${pend.length}) ` : '') + 'Administración · ' + config.nombre;
 
-    if (pendAnterior !== null && pend.length > pendAnterior) toast('Llegó un nuevo comprobante para verificar');
+    if (pendAnterior !== null && pend.length > pendAnterior) toast('Hay una compra nueva que requiere tu atención');
     pendAnterior = pend.length;
 
     // Avisos
     let av = '';
+    if (!datos.pagosOnline) av += `<div class="aviso info"><b>Pagos con Mercado Pago sin configurar.</b> Mientras tanto, los participantes pagan por transferencia y suben el comprobante. Para activarlos, cargá la variable <b>MP_ACCESS_TOKEN</b> en Render.</div>`;
     if (vendidos === 100 && config.numero_ganador == null) av += `<div class="aviso completa"><span class="grande">¡Tómbola completa!</span>Se vendieron los 100 números. Ya podés realizar el sorteo y cargar el resultado en la pestaña Sorteo.</div>`;
     else if (100 - vendidos - cuenta('pendiente') === 0 && vendidos < 100) av += `<div class="aviso info">Todos los números están tomados. Faltan verificar <b>${cuenta('pendiente')}</b> comprobantes para completar la tómbola.</div>`;
     $('#a-avisos').innerHTML = av;
@@ -252,15 +254,16 @@
 
   function tarjetaCompra(c, conAcciones) {
     return `<div class="compra" data-id="${c.id}">
-      <div class="compra-cab"><span class="persona">${esc(c.nombre)}</span><span class="estado ${c.estado}">${{ reservada: 'Reservada', pendiente: 'Por verificar', aprobada: 'Confirmada', rechazada: 'Rechazada', vencida: 'Vencida' }[c.estado]}</span></div>
+      <div class="compra-cab"><span class="persona">${esc(c.nombre)}</span><span class="estado ${c.estado}">${{ reservada: 'Reservada', pendiente: 'Por verificar', aprobada: 'Confirmada', rechazada: 'Rechazada', vencida: 'Vencida', excepcion: 'Devolver dinero', devuelta: 'Devuelta' }[c.estado]}</span></div>
       <div class="meta"><a href="${wa(c.celular)}" target="_blank" rel="noopener">WhatsApp ${esc(c.celular)}</a> · Código ${esc(c.codigo)} · ${fecha(c.created_at)}</div>
       <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla${c.estado === 'aprobada' ? '' : ' clara'}">${pad(n)}</span>`).join('')}</div>
-      <div class="total-recaudado" style="margin-top:6px">${c.numeros.length} × ${pesos(datos.config.precio)} = <b>${pesos(c.numeros.length * datos.config.precio)}</b></div>
+      <div class="total-recaudado" style="margin-top:6px">Total <b>${pesos(c.monto || c.numeros.length * datos.config.precio)}</b>${c.mp_payment_id ? ` · Mercado Pago operación <b>${esc(c.mp_payment_id)}</b>${c.metodo_pago ? ' (' + esc(c.metodo_pago) + ')' : ''}` : ''}${c.pagado_at ? ' · pagado ' + fecha(c.pagado_at) : ''}</div>
       ${c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
       <div class="acciones">
         ${c.tiene_comprobante ? `<button class="btn secundario chico" data-ver="${c.id}">Ver comprobante</button>` : ''}
         ${conAcciones && c.estado === 'pendiente' ? `<button class="btn verde chico" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario chico" data-rechazar="${c.id}">Rechazar</button>` : ''}
         ${conAcciones && c.estado === 'aprobada' ? `<button class="btn link chico" data-rechazar="${c.id}">Anular</button>` : ''}
+        ${conAcciones && c.estado === 'excepcion' ? `<button class="btn oscuro chico" data-devuelta="${c.id}">Ya devolví el dinero</button>` : ''}
       </div>
     </div>`;
   }
@@ -268,7 +271,7 @@
   function pintarPendientes(pend) {
     $('#lista-pend').innerHTML = pend.length
       ? pend.slice().reverse().map((c) => tarjetaCompra(c, true)).join('')
-      : '<div class="vacio">No hay comprobantes por verificar. 🎉</div>';
+      : '<div class="vacio">Nada pendiente. Los pagos con Mercado Pago se confirman solos. 🎉</div>';
   }
 
   function pintarCompras() {
@@ -300,8 +303,14 @@
 
   // ---------- Acciones ----------
   document.addEventListener('click', async (ev) => {
-    const t = ev.target.closest('[data-ver],[data-aprobar],[data-rechazar]'); if (!t) return;
+    const t = ev.target.closest('[data-ver],[data-aprobar],[data-rechazar],[data-devuelta]'); if (!t) return;
     if (t.dataset.ver) return verComprobante(t.dataset.ver);
+    if (t.dataset.devuelta) {
+      const c = datos.compras.find((x) => x.id === t.dataset.devuelta);
+      if (!confirm(`¿Confirmás que ya le devolviste ${pesos(c.monto)} a ${c.nombre}? (Lo podés hacer desde la actividad de Mercado Pago, en la operación ${c.mp_payment_id || ''}.)`)) return;
+      try { await api('/api/admin/devuelta/' + c.id, { method: 'POST' }); toast('Marcada como devuelta'); await cargar(); } catch (e) { toast(e.message); }
+      return;
+    }
     if (t.dataset.aprobar) {
       t.disabled = true;
       try { await api('/api/admin/aprobar/' + t.dataset.aprobar, { method: 'POST' }); toast('Pago aprobado. Números confirmados.'); cerrarModal(); await cargar(); }
