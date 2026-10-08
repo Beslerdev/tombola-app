@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#16233b">
 <meta name="robots" content="noindex">
-<title>Administración · Tómbola</title>
+<title>Gestión · Tutombola!</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%2316233b'/><text x='50' y='66' font-size='48' text-anchor='middle' fill='%23e9a83a' font-family='sans-serif' font-weight='bold'>99</text></svg>">
 <link rel="stylesheet" href="/estilos.css">
 <style>
@@ -57,7 +57,7 @@
 <div id="v-panel" class="oculto">
   <header class="cabecera">
     <div class="envoltura">
-      <div class="etiqueta">Panel de administración</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><a href="/panel" class="etiqueta" style="text-decoration:none">← Mis tómbolas</a><a id="a-ver" class="etiqueta" target="_blank" rel="noopener" style="text-decoration:none">Ver página pública ↗</a></div>
       <h1 id="a-nombre">—</h1>
       <div class="progreso">
         <div class="barra"><div id="a-barra" style="width:0%"></div></div>
@@ -147,14 +147,17 @@
           <div class="campo"><label for="c-min">Minutos de reserva</label><input type="number" id="c-min" min="2" max="120"></div>
         </div>
         <div class="fila-form">
-          <div class="campo"><label for="c-alias">Alias para transferir</label><input type="text" id="c-alias" maxlength="100"></div>
-          <div class="campo"><label for="c-titular">Titular de la cuenta</label><input type="text" id="c-titular" maxlength="100"></div>
+          <div class="campo"><label for="c-estado">Estado de la venta</label>
+            <select id="c-estado" style="width:100%;padding:12px;border:1.5px solid var(--borde);border-radius:10px;background:#fff;font-size:16px">
+              <option value="activa">Activa (se puede comprar)</option><option value="pausada">Pausada</option><option value="finalizada">Finalizada</option>
+            </select></div>
+          <div class="campo"><label>Cobros</label><a class="btn secundario" href="/panel#cobros" style="text-decoration:none;width:100%">Configurar alias y Mercado Pago</a></div>
         </div>
         <div class="campo"><label for="c-info">Texto del aviso de tómbola completa</label><textarea id="c-info" rows="2" maxlength="300"></textarea></div>
         <div id="c-msg"></div>
         <button class="btn oscuro" type="submit">Guardar cambios</button>
         <p class="ayuda" style="margin-top:16px">Link para participantes: <b id="c-link"></b> <button class="copiar" type="button" id="c-copiar">Copiar</button></p>
-        <button class="btn link" type="button" id="salir" style="padding-left:0">Cerrar sesión</button>
+        <button class="btn link" type="button" id="salir" style="padding-left:0">← Volver a mis tómbolas</button>
       </form>
     </section>
   </main>
@@ -183,8 +186,10 @@
   const fecha = (d) => new Date(d).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   const wa = (cel) => 'https://wa.me/549' + String(cel).replace(/\D/g, '');
 
+  const TID = location.pathname.split('/')[3];
   let token = null;
-  try { token = localStorage.getItem('tombola_admin'); } catch {}
+  try { token = localStorage.getItem('tt_sesion'); } catch {}
+  if (!token) location.href = '/ingresar?volver=' + encodeURIComponent(location.pathname);
   let datos = null;
   let filtro = 'todas';
   let pendAnterior = null;
@@ -202,8 +207,8 @@
 
   // ---------- Login ----------
   function mostrar(vista) { $('#v-login').classList.toggle('oculto', vista !== 'login'); $('#v-panel').classList.toggle('oculto', vista !== 'panel'); }
-  function salir() { token = null; try { localStorage.removeItem('tombola_admin'); } catch {} mostrar('login'); }
-  $('#salir').addEventListener('click', salir);
+  function salir() { token = null; try { localStorage.removeItem('tt_sesion'); } catch {} location.href = '/ingresar?volver=' + encodeURIComponent(location.pathname); }
+  $('#salir').addEventListener('click', () => (location.href = '/panel'));
 
   $('#form-login').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -219,7 +224,11 @@
 
   // ---------- Carga ----------
   async function cargar() {
-    try { datos = await api('/api/admin/resumen'); pintar(); } catch (e) { if (token) toast(e.message); }
+    try {
+      const d = await api('/api/panel/tombolas/' + TID);
+      datos = { ...d, config: d.tombola, pagosOnline: d.org.mp_conectado };
+      pintar();
+    } catch (e) { if (token) toast(e.message); }
   }
 
   function pintar() {
@@ -234,14 +243,17 @@
     $('#m-reservados').textContent = cuenta('reservado');
     $('#m-recaudado').textContent = pesos(compras.filter((c) => c.estado === 'aprobada').reduce((s, c) => s + c.numeros.length, 0) * config.precio);
     $('#c-pend').textContent = pend.length; $('#c-pend').classList.toggle('oculto', !pend.length);
-    document.title = (pend.length ? `(${pend.length}) ` : '') + 'Administración · ' + config.nombre;
+    document.title = (pend.length ? `(${pend.length}) ` : '') + config.nombre + ' · Tutombola!';
 
     if (pendAnterior !== null && pend.length > pendAnterior) toast('Hay una compra nueva que requiere tu atención');
     pendAnterior = pend.length;
 
     // Avisos
     let av = '';
-    if (!datos.pagosOnline) av += `<div class="aviso info"><b>Pagos con Mercado Pago sin configurar.</b> Mientras tanto, los participantes pagan por transferencia y suben el comprobante. Para activarlos, cargá la variable <b>MP_ACCESS_TOKEN</b> en Render.</div>`;
+    if (!datos.org.activa) av += `<div class="aviso error"><b>Tu suscripción venció y la tómbola está suspendida.</b> No se pueden comprar números. <a href="/panel">Renovala desde tu panel</a>.</div>`;
+    if (!datos.org.mp_conectado && !(datos.org.acepta_transferencia && datos.org.alias)) av += `<div class="aviso error"><b>Todavía no configuraste cómo cobrar.</b> Nadie puede comprar números hasta que lo hagas. <a href="/panel#cobros">Configurar cobros</a>.</div>`;
+    else if (!datos.org.mp_conectado) av += `<div class="aviso info">Cobrás solo por transferencia: tenés que aprobar cada comprobante. <a href="/panel#cobros">Conectá Mercado Pago</a> para que los pagos se confirmen solos.</div>`;
+    if (datos.tombola.estado === 'pausada') av += `<div class="aviso info"><b>Venta pausada.</b> Los participantes no pueden comprar. Reactivala en Ajustes.</div>`;
     if (vendidos === 100 && config.numero_ganador == null) av += `<div class="aviso completa"><span class="grande">¡Tómbola completa!</span>Se vendieron los 100 números. Ya podés realizar el sorteo y cargar el resultado en la pestaña Sorteo.</div>`;
     else if (100 - vendidos - cuenta('pendiente') === 0 && vendidos < 100) av += `<div class="aviso info">Todos los números están tomados. Faltan verificar <b>${cuenta('pendiente')}</b> comprobantes para completar la tómbola.</div>`;
     $('#a-avisos').innerHTML = av;
@@ -249,6 +261,8 @@
     pintarPendientes(pend);
     pintarCompras();
     pintarGrilla();
+    $('#c-link').textContent = linkPublico();
+    $('#a-ver').href = '/t/' + datos.tombola.slug;
     if (!document.activeElement || !document.activeElement.closest('#form-ajustes')) llenarAjustes();
     pintarGanador();
   }
@@ -309,12 +323,12 @@
     if (t.dataset.devuelta) {
       const c = datos.compras.find((x) => x.id === t.dataset.devuelta);
       if (!(await preguntar({ titulo: '¿Ya devolviste el dinero?', texto: `${pesos(c.monto)} a ${c.nombre}.\nLo podés devolver desde la actividad de Mercado Pago${c.mp_payment_id ? ', operación ' + c.mp_payment_id : ''}.`, si: 'Sí, ya lo devolví' }))) return;
-      try { await api('/api/admin/devuelta/' + c.id, { method: 'POST' }); toast('Marcada como devuelta'); await cargar(); } catch (e) { toast(e.message); }
+      try { await api('/api/panel/compras/' + c.id + '/devuelta', { method: 'POST' }); toast('Marcada como devuelta'); await cargar(); } catch (e) { toast(e.message); }
       return;
     }
     if (t.dataset.aprobar) {
       t.disabled = true;
-      try { await api('/api/admin/aprobar/' + t.dataset.aprobar, { method: 'POST' }); toast('Pago aprobado. Números confirmados.'); cerrarModal(); await cargar(); }
+      try { await api('/api/panel/compras/' + t.dataset.aprobar + '/aprobar', { method: 'POST' }); toast('Pago aprobado. Números confirmados.'); cerrarModal(); await cargar(); }
       catch (e) { toast(e.message); t.disabled = false; }
     }
     if (t.dataset.rechazar) {
@@ -327,7 +341,7 @@
         si: anular ? 'Anular compra' : 'Rechazar', peligro: true,
       });
       if (nota === null) return;
-      try { await api('/api/admin/rechazar/' + c.id, { method: 'POST', body: JSON.stringify({ nota }) }); toast('Compra rechazada. Números liberados.'); cerrarModal(); await cargar(); }
+      try { await api('/api/panel/compras/' + c.id + '/rechazar', { method: 'POST', body: JSON.stringify({ nota }) }); toast('Compra rechazada. Números liberados.'); cerrarModal(); await cargar(); }
       catch (e) { toast(e.message); }
     }
   });
@@ -340,7 +354,7 @@
     $('#mc-acciones').innerHTML = c.estado === 'pendiente' ? `<button class="btn verde" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario" data-rechazar="${c.id}">Rechazar</button>` : '';
     $('#m-comp').classList.remove('oculto');
     try {
-      const res = await fetch('/api/admin/comprobante/' + id, { headers: { Authorization: 'Bearer ' + token } });
+      const res = await fetch('/api/panel/comprobante/' + id, { headers: { Authorization: 'Bearer ' + token } });
       if (!res.ok) throw new Error('No se pudo cargar el comprobante');
       const blob = await res.blob();
       if (urlComp) URL.revokeObjectURL(urlComp);
@@ -357,20 +371,20 @@
   function llenarAjustes() {
     const c = datos.config;
     $('#c-nombre').value = c.nombre; $('#c-premio').value = c.premio; $('#c-precio').value = c.precio;
-    $('#c-min').value = c.minutos_reserva; $('#c-alias').value = c.alias; $('#c-titular').value = c.titular || ''; $('#c-info').value = c.info_sorteo;
+    $('#c-min').value = c.minutos_reserva; $('#c-estado').value = c.estado; $('#c-info').value = c.info_sorteo;
   }
   $('#form-ajustes').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     try {
-      await api('/api/admin/config', { method: 'POST', body: JSON.stringify({
+      await api('/api/panel/tombolas/' + TID, { method: 'POST', body: JSON.stringify({
         nombre: $('#c-nombre').value, premio: $('#c-premio').value, precio: $('#c-precio').value, minutos_reserva: $('#c-min').value,
-        alias: $('#c-alias').value, titular: $('#c-titular').value, info_sorteo: $('#c-info').value }) });
+        estado: $('#c-estado').value, info_sorteo: $('#c-info').value }) });
       $('#c-msg').innerHTML = '<div class="aviso ok">Cambios guardados.</div>'; setTimeout(() => ($('#c-msg').innerHTML = ''), 2500);
       document.activeElement.blur(); await cargar();
     } catch (e) { $('#c-msg').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; }
   });
-  $('#c-link').textContent = location.origin + '/';
-  $('#c-copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText(location.origin + '/'); toast('Link copiado'); } catch { toast(location.origin + '/'); } });
+  const linkPublico = () => location.origin + '/t/' + (datos ? datos.tombola.slug : '');
+  $('#c-copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText(linkPublico()); toast('Link copiado'); } catch { toast(linkPublico()); } });
 
   // ---------- Sorteo ----------
   function pintarGanador() {
@@ -390,12 +404,12 @@
     if (n === '') return toast('Ingresá el número ganador');
     const vendidos = datos.numeros.filter((x) => x.e === 'pagado').length;
     if (vendidos < 100 && !(await preguntar({ titulo: 'La tómbola no está completa', texto: `Hay ${vendidos} de 100 números vendidos. ¿Publicar el ganador igual?`, si: 'Publicar igual' }))) return;
-    try { await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ numero_ganador: n, detalle_ganador: $('#s-det').value }) }); document.activeElement.blur(); toast('Ganador publicado'); await cargar(); }
+    try { await api('/api/panel/tombolas/' + TID, { method: 'POST', body: JSON.stringify({ numero_ganador: n, detalle_ganador: $('#s-det').value }) }); document.activeElement.blur(); toast('Ganador publicado'); await cargar(); }
     catch (e) { toast(e.message); }
   });
   $('#s-borrar').addEventListener('click', async () => {
     if (!(await preguntar({ titulo: '¿Quitar el resultado publicado?', texto: 'El número ganador deja de mostrarse en la página.', si: 'Quitar', peligro: true }))) return;
-    try { await api('/api/admin/config', { method: 'POST', body: JSON.stringify({ numero_ganador: null, detalle_ganador: null }) }); toast('Resultado quitado'); await cargar(); }
+    try { await api('/api/panel/tombolas/' + TID, { method: 'POST', body: JSON.stringify({ numero_ganador: null, detalle_ganador: null }) }); toast('Resultado quitado'); await cargar(); }
     catch (e) { toast(e.message); }
   });
 
@@ -409,7 +423,7 @@
   let timer = null;
   function iniciar() { mostrar('panel'); cargar(); clearInterval(timer); timer = setInterval(() => { if (!document.hidden) cargar(); }, 15000); }
   document.addEventListener('visibilitychange', () => { if (!document.hidden && token) cargar(); });
-  token ? iniciar() : mostrar('login');
+  if (token) iniciar();
 })();
 </script>
 </body>

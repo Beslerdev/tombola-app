@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16233b">
+<title>Ingresar · Tutombola!</title>
+<link rel="icon" href="/icono.svg">
+<link rel="stylesheet" href="/estilos.css">
+<style>
+  .marca { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 26px; color: var(--tinta); text-decoration: none; display: block; text-align: center; margin: 28px 0 18px; }
+  .marca span { color: var(--acento); }
+  .caja { max-width: 420px; margin: 0 auto; }
+  .legal { font-size: 12.5px; color: var(--suave); margin: 12px 0 0; text-align: center; }
+  .legal a { color: var(--tinta-2); }
+</style>
+</head>
+<body>
+<main>
+  <a class="marca" href="/">Tu<span>tombola!</span></a>
+  <div class="caja">
+    <div class="pestanas" role="tablist">
+      <button role="tab" data-tab="ingresar">Ingresar</button>
+      <button role="tab" data-tab="registro">Crear cuenta</button>
+    </div>
+
+    <form class="tarjeta" id="f-ingresar">
+      <div class="campo"><label for="i-email">Email</label><input type="text" id="i-email" inputmode="email" autocomplete="email" required></div>
+      <div class="campo"><label for="i-pass">Contraseña</label><input type="password" id="i-pass" autocomplete="current-password" required></div>
+      <div data-error></div>
+      <button class="btn oscuro bloque" type="submit">Ingresar</button>
+      <p class="legal">¿Olvidaste tu contraseña? Escribinos y te generamos una nueva.</p>
+    </form>
+
+    <form class="tarjeta oculto" id="f-registro">
+      <p style="margin:0 0 14px;font-size:14.5px">Creá tu cuenta y probá <b>7 días gratis</b>. Después, $12.000 por mes.</p>
+      <div class="campo"><label for="r-nombre">Tu nombre o el de tu organización</label><input type="text" id="r-nombre" autocomplete="name" maxlength="80" required placeholder="Ej: Club Atlético San Martín"></div>
+      <div class="campo"><label for="r-email">Email</label><input type="text" id="r-email" inputmode="email" autocomplete="email" required></div>
+      <div class="campo"><label for="r-cel">Celular (opcional)</label><input type="tel" id="r-cel" inputmode="tel" autocomplete="tel" placeholder="Ej: 11 2345 6789"></div>
+      <div class="campo"><label for="r-pass">Contraseña</label><input type="password" id="r-pass" autocomplete="new-password" minlength="8" required><div class="ayuda">Mínimo 8 caracteres.</div></div>
+      <label style="display:flex;gap:10px;align-items:flex-start;font-weight:500;font-size:13.5px;margin:4px 0 14px">
+        <input type="checkbox" id="r-acepto" required style="width:18px;height:18px;margin-top:1px;flex-shrink:0">
+        <span>Acepto los <a href="/terminos" target="_blank">términos y condiciones</a> y declaro que soy responsable de mis tómbolas y de contar con las autorizaciones que correspondan.</span>
+      </label>
+      <div data-error></div>
+      <button class="btn bloque" type="submit">Crear cuenta gratis</button>
+    </form>
+  </div>
+</main>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const volver = new URLSearchParams(location.search).get('volver');
+  const destino = volver && volver.startsWith('/') && !volver.startsWith('//') ? volver : '/panel';
+  try { if (localStorage.getItem('tt_sesion')) location.replace(destino); } catch {}
+
+  function tab(t) {
+    document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
+    $('#f-ingresar').classList.toggle('oculto', t !== 'ingresar');
+    $('#f-registro').classList.toggle('oculto', t !== 'registro');
+    document.title = (t === 'registro' ? 'Crear cuenta' : 'Ingresar') + ' · Tutombola!';
+    history.replaceState(null, '', '/' + t + location.search);
+  }
+  document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => tab(b.dataset.tab)));
+  tab(location.pathname.includes('registro') ? 'registro' : 'ingresar');
+
+  async function enviar(form, url, body) {
+    const btn = form.querySelector('button[type=submit]'); const err = form.querySelector('[data-error]');
+    btn.disabled = true; err.innerHTML = '';
+    try {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || 'Error');
+      try { localStorage.setItem('tt_sesion', d.token); } catch {}
+      location.href = url.includes('registro') ? '/panel?bienvenida=1' : destino;
+    } catch (e) { err.innerHTML = `<div class="aviso error">${esc(e.message)}</div>`; btn.disabled = false; }
+  }
+  $('#f-ingresar').addEventListener('submit', (e) => { e.preventDefault(); enviar(e.target, '/api/login', { email: $('#i-email').value, password: $('#i-pass').value }); });
+  $('#f-registro').addEventListener('submit', (e) => {
+    e.preventDefault();
+    enviar(e.target, '/api/registro', { nombre: $('#r-nombre').value, email: $('#r-email').value, celular: $('#r-cel').value, password: $('#r-pass').value });
+  });
+})();
+</script>
+</body>
+</html>

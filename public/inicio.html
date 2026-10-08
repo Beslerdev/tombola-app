@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16233b">
+<title>Tutombola! · Vendé tu tómbola online</title>
+<meta name="description" content="Creá tu tómbola 00 al 99, compartí el link y cobrá con Mercado Pago o transferencia. Los números se confirman solos.">
+<link rel="icon" href="/icono.svg">
+<link rel="stylesheet" href="/estilos.css">
+<style>
+  .nav { display: flex; justify-content: space-between; align-items: center; max-width: 960px; margin: 0 auto; padding: 16px; }
+  .marca { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 22px; color: #fff; text-decoration: none; }
+  .marca span { color: var(--oro); }
+  .nav a.entrar { color: #fff; font-weight: 600; font-size: 14.5px; text-decoration: none; border: 1px solid rgba(255,255,255,.3); padding: 8px 14px; border-radius: 10px; }
+  .heroe { background: var(--tinta); color: #fff; position: relative; overflow: hidden; }
+  .heroe .cont { max-width: 960px; margin: 0 auto; padding: 24px 16px 56px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 32px; align-items: center; }
+  @media (max-width: 760px) { .heroe .cont { grid-template-columns: 1fr; padding-bottom: 40px; } }
+  .heroe h1 { font-size: clamp(34px, 7vw, 56px); margin: 0 0 14px; }
+  .heroe h1 em { font-style: normal; color: var(--oro); }
+  .heroe p.bajada { font-size: 18px; color: #d7deea; line-height: 1.5; margin: 0 0 24px; max-width: 520px; }
+  .heroe .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
+  .heroe .btn { font-size: 16px; padding: 14px 22px; }
+  .heroe .nota { font-size: 13px; color: #9fb0c9; margin-top: 12px; }
+  .mini-grilla { background: var(--papel); border-radius: 18px; padding: 14px; box-shadow: 0 20px 50px rgba(0,0,0,.35); transform: rotate(2deg); }
+  .mini-grilla .grilla { gap: 4px; }
+  .mini-grilla .celda { font-size: 14px; pointer-events: none; }
+  .seccion { max-width: 960px; margin: 0 auto; padding: 48px 16px; }
+  .seccion h2 { font-family: 'Bricolage Grotesque', sans-serif; font-size: clamp(26px, 5vw, 36px); margin: 0 0 8px; color: var(--tinta); }
+  .seccion > p.sub { color: var(--suave); margin: 0 0 28px; font-size: 16px; }
+  .pasos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .beneficios { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  @media (max-width: 760px) { .pasos, .beneficios { grid-template-columns: 1fr; } }
+  .paso .num { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 34px; color: var(--acento); line-height: 1; }
+  .paso h3, .beneficio h3 { margin: 10px 0 6px; font-size: 17px; color: var(--tinta); }
+  .paso p, .beneficio p { margin: 0; color: var(--suave); font-size: 14.5px; line-height: 1.5; }
+  .beneficio .ico { font-size: 26px; }
+  .precio { text-align: center; }
+  .precio .caja { max-width: 420px; margin: 0 auto; background: var(--carton); border: 2px solid var(--tinta); border-radius: 20px; padding: 28px 22px; box-shadow: var(--sombra); }
+  .precio .monto { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 48px; color: var(--tinta); line-height: 1; }
+  .precio .monto small { font-size: 16px; font-weight: 600; color: var(--suave); }
+  .precio ul { text-align: left; padding: 0; list-style: none; margin: 20px 0 22px; }
+  .precio li { padding: 7px 0 7px 28px; position: relative; font-size: 15px; }
+  .precio li::before { content: '✓'; position: absolute; left: 4px; color: var(--ok); font-weight: 800; }
+  footer { text-align: center; padding: 30px 16px 40px; color: var(--suave); font-size: 13px; }
+  footer a { color: var(--suave); }
+</style>
+</head>
+<body>
+
+<section class="heroe">
+  <nav class="nav">
+    <a class="marca" href="/">Tu<span>tombola!</span></a>
+    <a class="entrar" href="/ingresar">Ingresar</a>
+  </nav>
+  <div class="cont">
+    <div>
+      <h1>Tu tómbola se vende <em>sola</em>.</h1>
+      <p class="bajada">Creá tu tómbola del 00 al 99, compartí el link por WhatsApp y dejá que la gente elija y pague sus números. Los pagos se confirman automáticamente y los números vendidos se tachan al instante.</p>
+      <div class="ctas">
+        <a class="btn" href="/registro" style="text-decoration:none">Creá tu tómbola gratis</a>
+        <a class="btn secundario" href="#como" style="text-decoration:none">Cómo funciona</a>
+      </div>
+      <p class="nota">7 días de prueba gratis. Sin tarjeta.</p>
+    </div>
+    <div class="mini-grilla" aria-hidden="true"><div class="grilla" id="demo"></div></div>
+  </div>
+</section>
+
+<section class="seccion" id="como">
+  <h2>En 3 pasos</h2>
+  <p class="sub">Sin planillas, sin anotar en papel, sin perseguir a nadie.</p>
+  <div class="pasos">
+    <div class="tarjeta paso"><div class="num">1</div><h3>Creá tu tómbola</h3><p>Nombre, premio y precio por número. Conectá tu Mercado Pago o cargá tu alias.</p></div>
+    <div class="tarjeta paso"><div class="num">2</div><h3>Compartí el link</h3><p>Mandalo por WhatsApp, Instagram o donde quieras. Funciona en celular y PC.</p></div>
+    <div class="tarjeta paso"><div class="num">3</div><h3>La gente compra sola</h3><p>Eligen sus números, pagan y quedan confirmados. Vos seguís todo desde tu panel.</p></div>
+  </div>
+</section>
+
+<section class="seccion" style="padding-top:0">
+  <h2>Todo lo que necesitás</h2>
+  <p class="sub">&nbsp;</p>
+  <div class="beneficios">
+    <div class="tarjeta beneficio"><div class="ico">💳</div><h3>Cobro automático con Mercado Pago</h3><p>La plata va directo a tu cuenta. Dinero en cuenta, débito o crédito. El número se confirma apenas se acredita.</p></div>
+    <div class="tarjeta beneficio"><div class="ico">🏦</div><h3>También por transferencia</h3><p>Si preferís cobrar a tu alias, el comprador sube el comprobante y vos lo aprobás con un toque.</p></div>
+    <div class="tarjeta beneficio"><div class="ico">⏱️</div><h3>Reserva con tiempo límite</h3><p>Mientras alguien paga, su número queda reservado unos minutos. Nadie se queda con un número sin pagar.</p></div>
+    <div class="tarjeta beneficio"><div class="ico">🎉</div><h3>Aviso de tómbola completa</h3><p>Cuando se venden los 100 números, todos lo ven. Cargás el resultado de la Lotería y se publica el ganador.</p></div>
+  </div>
+</section>
+
+<section class="seccion precio" id="precio">
+  <h2>Un solo precio</h2>
+  <p class="sub">Sin comisiones de Tutombola! sobre tus ventas.</p>
+  <div class="caja">
+    <div class="monto">$12.000 <small>/ mes</small></div>
+    <ul>
+      <li>Tómbolas ilimitadas</li>
+      <li>Cobro con Mercado Pago y/o transferencia</li>
+      <li>Panel con compradores, pagos y grilla</li>
+      <li>7 días de prueba gratis</li>
+    </ul>
+    <a class="btn bloque" href="/registro" style="text-decoration:none">Empezar gratis</a>
+  </div>
+</section>
+
+<footer>
+  <b>Tutombola!</b> · <a href="/terminos">Términos y condiciones</a><br>
+  Cada organizador es responsable de su tómbola, de contar con las autorizaciones que correspondan y de entregar el premio.
+</footer>
+
+<script>
+  const g = document.getElementById('demo');
+  const vendidos = new Set([3, 7, 12, 18, 22, 25, 31, 39, 44, 47, 50, 56, 63, 68, 71, 77, 80, 84, 88, 92, 95, 99]);
+  for (let i = 0; i < 100; i++) {
+    const d = document.createElement('div');
+    d.className = 'celda' + (vendidos.has(i) ? ' pagado' : i === 61 || i === 14 ? ' sel' : i === 35 ? ' reservado' : '');
+    d.textContent = String(i).padStart(2, '0');
+    g.appendChild(d);
+  }
+</script>
+</body>
+</html>

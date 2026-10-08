@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#16233b">
+<meta name="robots" content="noindex">
+<title>Dueño · Tutombola!</title>
+<link rel="icon" href="/icono.svg">
+<link rel="stylesheet" href="/estilos.css">
+<style>
+  .metricas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .metrica { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 12px; padding: 10px; }
+  .metrica b { display: block; font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; line-height: 1.1; }
+  .metrica span { font-size: 11.5px; color: #b9c3d6; }
+  @media (max-width: 520px) { .metricas { grid-template-columns: repeat(2, 1fr); } }
+  .org { padding: 14px 0; }
+  .org + .org { border-top: 1px solid #efe7d6; }
+  .org .meta { font-size: 13px; color: var(--suave); margin: 3px 0 8px; }
+  .org .meta a { color: var(--ok); font-weight: 600; text-decoration: none; }
+  .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+  .estado.activa { background: var(--ok-bg); color: var(--ok); }
+  .estado.prueba { background: var(--warn-bg); color: #8a6418; }
+  .estado.vencida, .estado.bloqueada { background: var(--err-bg); color: var(--err); }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  td, th { text-align: left; padding: 8px 6px; border-bottom: 1px solid #efe7d6; }
+  th { color: var(--suave); font-weight: 600; font-size: 12px; }
+  .cfg li { margin: 6px 0; font-size: 14px; }
+  code { background: #f0ebe0; padding: 2px 6px; border-radius: 5px; font-size: 12.5px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header class="cabecera">
+  <div class="envoltura">
+    <a href="/panel" class="etiqueta" style="text-decoration:none">← Mi panel</a>
+    <h1>Tutombola! · Dueño</h1>
+    <div class="metricas">
+      <div class="metrica"><b id="m-org">0</b><span>organizadores</span></div>
+      <div class="metrica"><b id="m-activos">0</b><span>activos (pagos)</span></div>
+      <div class="metrica"><b id="m-prueba">0</b><span>en prueba</span></div>
+      <div class="metrica"><b id="m-mes">$0</b><span>cobrado (30 días)</span></div>
+    </div>
+  </div>
+</header>
+<main>
+  <div id="cfg"></div>
+  <div class="pestanas" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="orgs">Organizadores</button>
+    <button role="tab" aria-selected="false" data-tab="pagos">Pagos recibidos</button>
+  </div>
+  <section id="tab-orgs"><div class="tarjeta">
+    <input type="text" id="buscar" placeholder="Buscar por nombre o email" style="margin-bottom:6px">
+    <div id="lista"></div>
+  </div></section>
+  <section id="tab-pagos" class="oculto"><div class="tarjeta" style="overflow-x:auto"><table id="pagos"></table></div></section>
+</main>
+<div class="toast" id="toast"></div>
+<script src="/dialogo.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const pesos = (n) => '$' + Number(n || 0).toLocaleString('es-AR');
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fecha = (d) => d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+  let token = null; try { token = localStorage.getItem('tt_sesion'); } catch {}
+  if (!token) { location.href = '/ingresar?volver=/dueno'; return; }
+  let datos = null;
+  function toast(m) { const t = $('#toast'); t.textContent = m; t.classList.add('visible'); clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('visible'), 3500); }
+  async function api(url, opts = {}) {
+    const res = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token } });
+    if (res.status === 401) { location.href = '/ingresar?volver=/dueno'; throw new Error('Sesión vencida'); }
+    if (res.status === 403) { location.href = '/panel'; throw new Error('Sin permiso'); }
+    let d = null; try { d = await res.json(); } catch {}
+    if (!res.ok) throw new Error((d && d.error) || 'Error');
+    return d;
+  }
+  document.querySelectorAll('.pestanas button').forEach((b) => b.addEventListener('click', () => {
+    document.querySelectorAll('.pestanas button').forEach((x) => x.setAttribute('aria-selected', String(x === b)));
+    ['orgs', 'pagos'].forEach((t) => $('#tab-' + t).classList.toggle('oculto', t !== b.dataset.tab));
+  }));
+
+  function estadoOrg(o) {
+    if (o.es_dueno) return ['activa', 'Dueño'];
+    if (o.bloqueado) return ['bloqueada', 'Bloqueado'];
+    if (!o.activa) return ['vencida', 'Vencido'];
+    if (o.en_prueba) return ['prueba', 'En prueba'];
+    return ['activa', 'Al día'];
+  }
+  async function cargar() {
+    datos = await api('/api/dueno');
+    const orgs = datos.organizadores.filter((o) => !o.es_dueno);
+    $('#m-org').textContent = orgs.length;
+    $('#m-activos').textContent = orgs.filter((o) => o.activa && !o.en_prueba).length;
+    $('#m-prueba').textContent = orgs.filter((o) => o.activa && o.en_prueba).length;
+    const hace30 = Date.now() - 30 * 86400000;
+    $('#m-mes').textContent = pesos(datos.pagos.filter((p) => new Date(p.created_at) > hace30).reduce((s, p) => s + Number(p.monto || 0), 0));
+    const c = datos.config;
+    $('#cfg').innerHTML = (!c.suscripcion || !c.oauth) ? `<div class="aviso info"><b>Falta configurar Mercado Pago en Render</b><ul class="cfg">
+      ${c.suscripcion ? '' : '<li>Para cobrar suscripciones: variable <code>MP_ACCESS_TOKEN</code> (Access Token de producción de tu cuenta).</li>'}
+      ${c.oauth ? '' : `<li>Para "Conectar con Mercado Pago": variables <code>MP_CLIENT_ID</code> y <code>MP_CLIENT_SECRET</code> de tu aplicación, y en la aplicación cargá esta URL de redireccionamiento: <code>${esc(c.redirectUri)}</code></li>`}
+      </ul></div>` : '';
+    pintarLista();
+    $('#pagos').innerHTML = '<tr><th>Fecha</th><th>Organizador</th><th>Monto</th><th>Días</th><th>Origen</th></tr>' +
+      (datos.pagos.length ? datos.pagos.map((p) => `<tr><td>${fecha(p.created_at)}</td><td>${esc(p.nombre)}<br><span style="color:var(--suave)">${esc(p.email)}</span></td><td>${pesos(p.monto)}</td><td>${p.dias}</td><td>${p.origen === 'manual' ? 'Manual' : 'Mercado Pago'}</td></tr>`).join('') : '<tr><td colspan="5" class="vacio">Todavía no hay pagos.</td></tr>');
+  }
+  function pintarLista() {
+    const q = $('#buscar').value.trim().toLowerCase();
+    const lista = datos.organizadores.filter((o) => !q || o.nombre.toLowerCase().includes(q) || o.email.includes(q));
+    $('#lista').innerHTML = lista.map((o) => {
+      const [cls, txt] = estadoOrg(o);
+      return `<div class="org">
+        <div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(o.nombre)}</b><span class="estado ${cls}">${txt}</span></div>
+        <div class="meta">${esc(o.email)}${o.celular ? ` · <a href="https://wa.me/549${esc(o.celular)}" target="_blank" rel="noopener">WhatsApp</a>` : ''} · alta ${fecha(o.created_at)}${o.es_dueno ? '' : ` · vence ${fecha(o.vence)}`}<br>
+          ${o.tombolas} tómbola(s) · ${o.vendidos} números vendidos · cobros: ${[o.mp_conectado ? 'Mercado Pago' : '', o.acepta_transferencia && o.alias ? 'transferencia' : ''].filter(Boolean).join(' + ') || 'sin configurar'} · pagó ${pesos(o.pagado_total)}</div>
+        ${o.es_dueno ? '' : `<div class="acciones">
+          <button class="btn secundario chico" data-ext="${o.id}">Sumar días</button>
+          <button class="btn secundario chico" data-clave="${o.id}">Nueva contraseña</button>
+          <button class="btn link chico" data-bloq="${o.id}" data-v="${o.bloqueado ? 0 : 1}">${o.bloqueado ? 'Desbloquear' : 'Bloquear'}</button>
+        </div>`}
+      </div>`;
+    }).join('') || '<div class="vacio">Sin resultados.</div>';
+  }
+  $('#buscar').addEventListener('input', pintarLista);
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-ext],[data-clave],[data-bloq]'); if (!b) return;
+    const o = datos.organizadores.find((x) => x.id === (b.dataset.ext || b.dataset.clave || b.dataset.bloq));
+    try {
+      if (b.dataset.ext) {
+        const dias = await preguntar({ titulo: `Sumar días a ${o.nombre}`, texto: 'Usalo si te pagó por fuera de Mercado Pago o para regalar días.', campo: 'Días a sumar', valor: '30', si: 'Sumar' });
+        if (!dias) return;
+        await api(`/api/dueno/${o.id}/extender`, { method: 'POST', body: JSON.stringify({ dias: parseInt(dias, 10) }) });
+        toast('Días sumados'); cargar();
+      } else if (b.dataset.clave) {
+        if (!(await preguntar({ titulo: `Nueva contraseña para ${o.nombre}`, texto: 'Se genera una contraseña nueva y la anterior deja de funcionar. Pasásela al organizador.', si: 'Generar' }))) return;
+        const r = await api(`/api/dueno/${o.id}/clave`, { method: 'POST' });
+        await preguntar({ titulo: 'Contraseña nueva', texto: `Email: ${o.email}\nContraseña: ${r.clave}\n\nPasásela al organizador; puede cambiarla desde "Mi cuenta".`, si: 'Listo', no: 'Cerrar' });
+      } else if (b.dataset.bloq) {
+        const bloquear = b.dataset.v === '1';
+        if (!(await preguntar({ titulo: `${bloquear ? 'Bloquear' : 'Desbloquear'} a ${o.nombre}`, texto: bloquear ? 'No va a poder ingresar y sus tómbolas quedan suspendidas.' : 'Vuelve a tener acceso.', si: bloquear ? 'Bloquear' : 'Desbloquear', peligro: bloquear }))) return;
+        await api(`/api/dueno/${o.id}/bloquear`, { method: 'POST', body: JSON.stringify({ bloquear }) });
+        cargar();
+      }
+    } catch (err) { toast(err.message); }
+  });
+  cargar().catch((e) => toast(e.message));
+})();
+</script>
+</body>
+</html>

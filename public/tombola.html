@@ -17,7 +17,7 @@
     <p class="premio">Premio: <b id="t-premio">—</b></p>
     <div class="datos">
       <span class="chip-dato">Cada número <b id="t-precio">—</b></span>
-      <span class="chip-dato">Sorteo por <b>Lotería Nacional</b></span>
+      <span class="chip-dato">Organiza <b id="t-org">—</b></span>
     </div>
     <div class="progreso">
       <div class="barra"><div id="t-barra" style="width:0%"></div></div>
@@ -63,7 +63,7 @@
     </div>
   </section>
 
-  <p class="pie">¿Dudas? Comunicate con el organizador.</p>
+  <p class="pie">¿Dudas? Comunicate con el organizador.<br>Tómbola creada con <a href="/">Tutombola!</a></p>
 </main>
 
 <!-- Barra inferior -->
@@ -117,6 +117,7 @@
       <div id="p-error-online"></div>
       <button class="btn bloque mp" id="p-mp" type="button">Pagar con Mercado Pago</button>
       <p class="ayuda" style="text-align:center;margin:8px 0 0">Dinero en cuenta de Mercado Pago, tarjeta de débito o crédito.<br>Pago seguro procesado por Mercado Pago.</p>
+      <button class="btn link bloque oculto" id="p-otro" type="button">Prefiero pagar por transferencia</button>
     </div>
     <div class="p-manual">
     <label class="subida" id="p-subida">
@@ -172,13 +173,15 @@
     del(k) { try { localStorage.removeItem(k); } catch {} },
   };
 
+  const SLUG = decodeURIComponent(location.pathname.split('/')[2] || '');
+  const K_RES = 'tt_res_' + SLUG, K_MIOS = 'tt_mios_' + SLUG;
   let config = null;
-  let pagosOnline = false;
+  let pagosOnline = false, pagoManual = false, activa = true, suspendida = false;
   let numeros = [];
   let desfase = 0; // servidor - cliente (ms)
   const seleccion = new Set();
-  let reserva = LS.get('tombola_reserva');
-  let misNumeros = new Set(LS.get('tombola_mis_numeros') || []);
+  let reserva = LS.get(K_RES);
+  let misNumeros = new Set(LS.get(K_MIOS) || []);
   let archivo = null;
   let relojTimer = null;
 
@@ -204,11 +207,14 @@
   // ---------- Estado ----------
   async function cargar() {
     try {
-      const d = await api('/api/estado');
-      config = d.config; numeros = d.numeros; pagosOnline = !!d.pagosOnline;
+      const d = await api(`/api/t/${SLUG}`);
+      config = { ...d.tombola, alias: d.organizador.alias, titular: d.organizador.titular, organizador: d.organizador.nombre };
+      numeros = d.numeros; pagosOnline = !!d.medios.mp; pagoManual = !!d.medios.transferencia;
+      activa = !!d.activa; suspendida = !!d.suspendida;
       desfase = new Date(d.ahora).getTime() - Date.now();
       pintarCabecera(); pintarGrilla(); pintarAvisos(); pintarBarra();
     } catch (e) {
+      if (e.status === 404) { $('#t-nombre').textContent = 'Tómbola no encontrada'; aviso($('#avisos'), 'error', 'Revisá el link que te pasaron.'); return; }
       aviso($('#avisos'), 'error', 'No pudimos cargar la tómbola. Revisá tu conexión.');
     }
   }
@@ -222,7 +228,10 @@
     const libres = numeros.filter((x) => x.e === 'libre').length;
     $('#t-barra').style.width = vendidos + '%';
     $('#t-progreso').textContent = `${vendidos} de 100 vendidos · ${libres} disponibles`;
-    $('#ayuda-reserva').textContent = `Tocá los números que quieras. Al reservar tenés ${config.minutos_reserva} minutos para transferir y subir el comprobante.`;
+    $('#t-org').textContent = config.organizador;
+    $('#ayuda-reserva').textContent = activa
+      ? `Tocá los números que quieras. Al reservar tenés ${config.minutos_reserva} minutos para pagar.`
+      : 'Por ahora no se pueden comprar números en esta tómbola.';
   }
 
   function pintarAvisos() {
@@ -230,6 +239,12 @@
     const partes = [];
     if (config.numero_ganador !== null && config.numero_ganador !== undefined) {
       partes.push(`<div class="aviso ganador"><span class="grande">Número ganador: ${pad(config.numero_ganador)}</span>${esc(config.detalle_ganador || '')}</div>`);
+    } else if (suspendida) {
+      partes.push('<div class="aviso info"><b>Tómbola suspendida momentáneamente.</b> No se pueden comprar números por ahora. Los números ya comprados se mantienen.</div>');
+    } else if (config.estado === 'pausada') {
+      partes.push('<div class="aviso info"><b>Venta pausada por el organizador.</b> Volvé a intentar más tarde.</div>');
+    } else if (config.estado === 'finalizada') {
+      partes.push('<div class="aviso info"><b>Esta tómbola finalizó.</b></div>');
     } else if (vendidos === 100) {
       partes.push(`<div class="aviso completa"><span class="grande">¡Tómbola completa!</span>Se vendieron los 100 números. ${esc(config.info_sorteo)}</div>`);
     }
@@ -248,8 +263,9 @@
     }
     numeros.forEach((x) => {
       const b = g.children[x.n];
-      const libre = x.e === 'libre';
+      const libre = x.e === 'libre' && activa;
       if (!libre) seleccion.delete(x.n);
+      if (x.e === 'libre' && !activa) { b.className = 'celda'; b.disabled = true; b.setAttribute('aria-label', `Número ${pad(x.n)}`); return; }
       b.className = 'celda' + (libre ? '' : ' ' + x.e) + (seleccion.has(x.n) ? ' sel' : '') +
         (misNumeros.has(x.n) && x.e !== 'libre' ? ' mio' : '') + (ganador === x.n ? ' ganadora' : '');
       b.disabled = !libre;
@@ -283,6 +299,7 @@
 
   $('#b-reservar').addEventListener('click', () => {
     if (!seleccion.size) return;
+    if (!pagosOnline && !pagoManual) { toast('El organizador todavía no configuró cómo cobrar.'); return; }
     bolillas($('#d-bolillas'), [...seleccion].sort((a, b) => a - b));
     $('#d-nombre').value = LS.get('tombola_nombre') || '';
     $('#d-cel').value = LS.get('tombola_celular') || '';
@@ -297,10 +314,10 @@
     try {
       const nums = [...seleccion].sort((a, b) => a - b);
       const nombre = $('#d-nombre').value.trim();
-      const r = await api('/api/reservar', { method: 'POST', body: JSON.stringify({ numeros: nums, nombre, celular: $('#d-cel').value }) });
+      const r = await api(`/api/t/${SLUG}/reservar`, { method: 'POST', body: JSON.stringify({ numeros: nums, nombre, celular: $('#d-cel').value }) });
       LS.set('tombola_nombre', nombre); LS.set('tombola_celular', r.celular);
       reserva = { id: r.id, codigo: r.codigo, numeros: r.numeros, hasta: r.reservado_hasta, celular: r.celular, precio: config.precio, monto: r.monto };
-      LS.set('tombola_reserva', reserva);
+      LS.set(K_RES, reserva);
       recordarMios(r.numeros);
       seleccion.clear();
       cerrar('#m-datos');
@@ -317,7 +334,7 @@
     } finally { btn.disabled = false; btn.textContent = 'Reservar y pagar'; }
   });
 
-  function recordarMios(lista) { lista.forEach((n) => misNumeros.add(n)); LS.set('tombola_mis_numeros', [...misNumeros]); }
+  function recordarMios(lista) { lista.forEach((n) => misNumeros.add(n)); LS.set(K_MIOS, [...misNumeros]); }
 
   // ---------- Pago ----------
   function ahora() { return Date.now() + desfase; }
@@ -327,8 +344,9 @@
     if (!reserva) return;
     bolillas($('#p-bolillas'), reserva.numeros);
     $('#p-total').textContent = pesos(reserva.monto || reserva.numeros.length * (reserva.precio || config.precio));
-    document.querySelectorAll('.p-manual').forEach((el) => el.classList.toggle('oculto', pagosOnline));
+    mostrarManual(!pagosOnline);
     $('#p-online').classList.toggle('oculto', !pagosOnline);
+    $('#p-otro').classList.toggle('oculto', !(pagosOnline && pagoManual));
     $('#p-sub').textContent = pagosOnline
       ? 'Tus números están reservados. Pagá antes de que termine el tiempo y quedan confirmados al instante.'
       : 'Tus números están reservados. Transferí y subí el comprobante antes de que termine el tiempo.';
@@ -360,12 +378,15 @@
   }
 
   function finReserva(cerrarModal = true) {
-    reserva = null; LS.del('tombola_reserva'); archivo = null;
+    reserva = null; LS.del(K_RES); archivo = null;
     $('#p-archivo').value = ''; $('#p-nombre-archivo').textContent = ''; $('#p-preview').classList.add('oculto');
     $('#p-enviar').disabled = true;
     if (cerrarModal) { clearInterval(relojTimer); cerrar('#m-pago'); }
     cargar();
   }
+
+  function mostrarManual(si) { document.querySelectorAll('.p-manual').forEach((el) => el.classList.toggle('oculto', !si)); }
+  $('#p-otro').addEventListener('click', () => { mostrarManual(true); $('#p-otro').classList.add('oculto'); });
 
   $('#p-mp').addEventListener('click', async () => {
     if (!reserva || !reservaActiva()) return;
@@ -385,7 +406,7 @@
     const c = q.get('c') || q.get('external_reference');
     if (!q.get('pago') || !c) return false;
     const paymentId = q.get('payment_id') || q.get('collection_id') || '';
-    history.replaceState(null, '', '/');
+    history.replaceState(null, '', location.pathname);
     clearInterval(relojTimer); cerrar('#m-pago');
     const titulo = $('#r-titulo'), texto = $('#r-texto'), icono = $('#r-icono'), acc = $('#r-acciones');
     icono.textContent = '⏳'; titulo.textContent = 'Verificando tu pago…'; texto.textContent = 'Esto tarda unos segundos. No cierres esta página.';
@@ -407,12 +428,12 @@
       texto.textContent = 'Tus números quedaron confirmados a tu nombre. ¡Mucha suerte en el sorteo!';
       if (d.celular) LS.set('tombola_celular', d.celular);
       recordarMios(d.numeros);
-      if (reserva && reserva.id === c) { reserva = null; LS.del('tombola_reserva'); }
+      if (reserva && reserva.id === c) { reserva = null; LS.del(K_RES); }
       acc.innerHTML = '<button class="btn oscuro bloque" data-ver-mios>Ver mis números</button><button class="btn link bloque" data-cerrar-r>Cerrar</button>';
     } else if (d && d.estado === 'excepcion') {
       icono.textContent = '⚠️'; titulo.textContent = 'Recibimos tu pago, pero…';
       texto.textContent = (d.nota || 'Hubo un problema con tu reserva.') .replace('Devolver el dinero.', '') + ' El organizador te va a devolver el dinero. Si querés, podés elegir otros números.';
-      if (reserva && reserva.id === c) { reserva = null; LS.del('tombola_reserva'); }
+      if (reserva && reserva.id === c) { reserva = null; LS.del(K_RES); }
       acc.innerHTML = '<button class="btn oscuro bloque" data-cerrar-r>Entendido</button>';
     } else if (d && d.estado === 'reservada' && new Date(d.reservado_hasta).getTime() > ahora()) {
       icono.textContent = '↩️'; titulo.textContent = 'El pago no se completó';
@@ -425,7 +446,7 @@
     } else {
       icono.textContent = '⌛'; titulo.textContent = 'El pago no se completó';
       texto.textContent = 'No se cobró nada y la reserva ya venció. Podés volver a elegir números.';
-      if (reserva && reserva.id === c) { reserva = null; LS.del('tombola_reserva'); }
+      if (reserva && reserva.id === c) { reserva = null; LS.del(K_RES); }
       acc.innerHTML = '<button class="btn oscuro bloque" data-cerrar-r>Elegir números</button>';
     }
     acc.querySelectorAll('[data-cerrar-r]').forEach((b) => b.addEventListener('click', () => cerrar('#m-resultado')));
@@ -433,7 +454,7 @@
     acc.querySelectorAll('[data-reintentar]').forEach((b) => b.addEventListener('click', () => {
       cerrar('#m-resultado');
       if (!reserva || reserva.id !== c) reserva = { id: c, codigo: d.codigo, numeros: d.numeros, hasta: d.reservado_hasta, celular: d.celular, monto: d.monto };
-      LS.set('tombola_reserva', reserva); abrirPago();
+      LS.set(K_RES, reserva); abrirPago();
     }));
     cargar();
     return true;
@@ -492,7 +513,7 @@
     const ok = await preguntar({ titulo: '¿Cancelar la reserva?', texto: `Los números ${reserva.numeros.map(pad).join(', ')} quedarán libres para otras personas.`, si: 'Sí, cancelar', no: 'Seguir con el pago', peligro: true });
     if (!ok || !reserva) return;
     try { await api('/api/cancelar', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular }) }); } catch {}
-    reserva.numeros.forEach((n) => misNumeros.delete(n)); LS.set('tombola_mis_numeros', [...misNumeros]);
+    reserva.numeros.forEach((n) => misNumeros.delete(n)); LS.set(K_MIOS, [...misNumeros]);
     finReserva(true);
     toast('Reserva cancelada');
   });
@@ -516,7 +537,7 @@
     const cont = $('#mios-lista');
     cont.innerHTML = '<div class="vacio">Buscando…</div>';
     try {
-      const lista = await api('/api/mis-compras?celular=' + encodeURIComponent(cel));
+      const lista = await api(`/api/t/${SLUG}/mis-compras?celular=` + encodeURIComponent(cel));
       if (!lista.length) { cont.innerHTML = '<div class="vacio">No encontramos números para ese celular.</div>'; return; }
       LS.set('tombola_celular', cel);
       lista.filter((c) => ['aprobada', 'pendiente', 'reservada'].includes(c.estado)).forEach((c) => recordarMios(c.numeros));
@@ -541,7 +562,7 @@
   $('#form-mios').addEventListener('submit', (ev) => { ev.preventDefault(); verMios($('#mios-cel').value); });
 
   // ---------- Inicio ----------
-  cargar().then(async () => { if (await verificarRetorno()) return; if (reserva) { if (reservaActiva()) abrirPago(); else { reserva = null; LS.del('tombola_reserva'); } } });
+  cargar().then(async () => { if (await verificarRetorno()) return; if (reserva) { if (reservaActiva()) abrirPago(); else { reserva = null; LS.del(K_RES); } } });
   setInterval(() => { if (!document.hidden) cargar(); }, 10000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) cargar(); });
 })();

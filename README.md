@@ -1,38 +1,36 @@
-# Tómbola 00–99
+# Tutombola!
 
-App web (celular y PC) para vender los 100 números de una tómbola.
+Plataforma para que organizadores vendan tómbolas 00–99 online.
 
-- **Participantes** (`/`): eligen uno o varios números libres, cargan nombre y celular, y tienen unos minutos de reserva (configurable, 8 por defecto) para transferir al alias y subir el comprobante. Con su celular consultan sus números en "Mis números".
-- **Administrador** (`/admin`): verifica comprobantes (aprobar / rechazar), ve todas las compras y a quién pertenece cada número, edita nombre, premio, precio, alias y titular, y publica el número ganador de Lotería Nacional.
-- Los números pagados se muestran tachados en la grilla. Al venderse los 100 aparece el aviso de **tómbola completa** para todos.
+- **Organizadores** se registran solos (`/registro`), tienen 7 días de prueba y después una suscripción mensual que pagan con Mercado Pago a la cuenta de Tutombola!. Si no renuevan, sus tómbolas se suspenden (no aceptan compras nuevas; lo vendido se respeta).
+- Cada organizador crea tómbolas con link propio (`/t/<slug>`) y elige cómo cobrar:
+  - **Mercado Pago** conectado por OAuth: el pago va a su cuenta y se confirma solo (webhook + verificación al volver).
+  - **Transferencia a su alias**: el comprador sube el comprobante y el organizador lo aprueba.
+- **Dueño** (`/dueno`): organizadores, vencimientos, pagos de suscripción, sumar días, generar contraseña, bloquear.
 
-## Arquitectura
+## Páginas
 
-- `server.js`: Express. Sirve las páginas y una API que llama a funciones de Postgres en Supabase.
-- Supabase (proyecto `tombola`): tablas `config`, `compras`, `numeros`, `comprobantes`. Las tablas tienen RLS sin políticas; el acceso es solo mediante funciones `api_*` que exigen la clave del servidor (`DB_API_KEY`). La reserva es atómica (bloqueo de filas), así dos personas no pueden quedarse con el mismo número.
-- Los comprobantes se guardan en la base (privados) y solo los ve el administrador.
+| Ruta | Qué es |
+|---|---|
+| `/` | Página de la plataforma |
+| `/ingresar`, `/registro` | Cuenta del organizador |
+| `/panel` | Panel del organizador: suscripción, tómbolas, cobros, cuenta |
+| `/panel/t/:id` | Gestión de una tómbola |
+| `/t/:slug` | Página pública de la tómbola |
+| `/dueno` | Panel del dueño |
 
 ## Variables de entorno
 
 | Variable | Descripción |
 |---|---|
-| `SUPABASE_URL` | URL del proyecto Supabase |
-| `SUPABASE_ANON_KEY` | Clave anon/publishable del proyecto |
-| `DB_API_KEY` | Clave del servidor (su hash está en `app_secret`) |
-| `ADMIN_PASSWORD` | Contraseña del panel `/admin` |
-| `TOKEN_SECRET` | Secreto para firmar la sesión del admin |
-| `MP_ACCESS_TOKEN` | Access Token de producción de Mercado Pago. Si está, el pago es con Checkout Pro y se confirma solo; si no, se usa transferencia + comprobante |
+| `SUPABASE_URL`, `SUPABASE_ANON_KEY` | Proyecto Supabase |
+| `DB_API_KEY` | Clave del servidor para las funciones `api_*` (su hash está en `app_secret`) |
+| `TOKEN_SECRET` | Firma de sesiones |
+| `ENC_KEY` | 32 bytes hex para cifrar los tokens de Mercado Pago de los organizadores |
+| `MP_ACCESS_TOKEN` | Access Token de producción de la cuenta de Tutombola! (cobro de suscripciones) |
+| `MP_CLIENT_ID`, `MP_CLIENT_SECRET` | Aplicación de Mercado Pago para "Conectar con Mercado Pago" (OAuth). Redirect URI: `<PUBLIC_URL>/api/mp/oauth/callback` |
+| `PRECIO_SUSCRIPCION`, `DIAS_SUSCRIPCION` | Por defecto 12000 y 30 |
 
-## Pagos con Mercado Pago
+## Datos
 
-1. Al reservar se crea una preferencia de Checkout Pro con `external_reference` = id de la compra y vencimiento igual al de la reserva (sin Rapipago/Pago Fácil, `binary_mode`).
-2. Mercado Pago notifica a `/api/mp/webhook`; el servidor **consulta el pago a la API de MP** (no confía en el aviso) y si está aprobado confirma los números.
-3. Al volver del checkout, la página consulta `/api/pago/estado` como respaldo del webhook.
-4. Si el pago llega tarde y el número ya fue tomado, o el monto no coincide, la compra queda en estado `excepcion` para que el admin devuelva el dinero.
-
-## Local
-
-```
-npm install
-SUPABASE_URL=... SUPABASE_ANON_KEY=... DB_API_KEY=... ADMIN_PASSWORD=... TOKEN_SECRET=... npm start
-```
+Tablas: `organizadores`, `tombolas`, `casilleros` (100 por tómbola), `compras`, `comprobantes`, `pagos`, `pagos_suscripcion`. Todas con RLS sin políticas; el acceso es solo por funciones `api_*` que exigen `DB_API_KEY`. Las tablas `config` y `numeros` quedaron de la versión de una sola tómbola y no se usan.
