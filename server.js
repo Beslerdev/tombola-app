@@ -59,7 +59,7 @@ function enviarError(res, e) {
     return res.status(409).json({ error: MENSAJES.NO_DISPONIBLE, ocupados });
   }
   if (MENSAJES[codigo]) return res.status(400).json({ error: MENSAJES[codigo], codigo });
-  if (e.status && e.status !== 400 && e.publico) return res.status(e.status).json({ error: msg });
+  if (e.publico) return res.status(e.status || 400).json({ error: msg });
   console.error(e);
   res.status(500).json({ error: 'Ocurrió un error. Probá de nuevo en unos segundos.' });
 }
