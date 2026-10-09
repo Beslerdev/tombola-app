@@ -535,6 +535,25 @@ app.get('/api/pago/estado', wrap(async (req, res) => {
   res.json({ estado: c.estado, estadoMp, codigo: c.codigo, numeros: c.numeros, monto: c.monto, reservado_hasta: c.reservado_hasta, celular: c.celular, nota: c.nota_admin });
 }));
 
+// El comprador volvió de Mercado Pago sin pagar: liberar la reserva si no hay ningún pago en curso
+app.post('/api/pago/abandonar', wrap(async (req, res) => {
+  const compraId = String((req.body && req.body.compraId) || '');
+  if (!UUID.test(compraId)) throw errorPublico(400, 'Reserva inválida');
+  let c = await rpc('api_compra', { p_compra: compraId });
+  if (!c) throw errorPublico(404, 'No encontramos esa reserva');
+  if (c.estado !== 'reservada') return res.json({ estado: c.estado });
+  const token = await tokenOrg(c.organizador_id);
+  if (token) {
+    const s = await mp(token, `/v1/payments/search?external_reference=${compraId}&sort=date_created&criteria=desc&limit=10`);
+    for (const p of (s.results || [])) {
+      if (p.status === 'approved') { await procesarPago(c.organizador_id, p.id); c = await rpc('api_compra', { p_compra: compraId }); return res.json({ estado: c.estado }); }
+      if (['pending', 'in_process', 'authorized'].includes(p.status)) return res.json({ estado: c.estado, enProceso: true });
+    }
+  }
+  await rpc('api_cancelar', { p_compra: compraId, p_celular: c.celular });
+  res.json({ estado: 'cancelada' });
+}));
+
 // ======================================================================
 // API: dueño de la plataforma
 // ======================================================================

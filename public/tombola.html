@@ -414,13 +414,26 @@
     abrir('#m-resultado');
     const inicio = Date.now();
     let d = null;
-    while (Date.now() - inicio < 90_000) {
+    const cs = q.get('collection_status') || q.get('status');
+    const volvioOk = cs && cs !== 'null' ? cs === 'approved' : q.get('pago') === 'ok' && !!paymentId && paymentId !== 'null';
+    let intentos = 0;
+    while (Date.now() - inicio < (volvioOk ? 90_000 : 20_000)) {
+      intentos++;
       try {
-        d = await api(`/api/pago/estado?c=${encodeURIComponent(c)}${paymentId ? '&payment_id=' + encodeURIComponent(paymentId) : ''}`);
-        if (['aprobada', 'excepcion', 'devuelta'].includes(d.estado)) break;
-        if (d.estadoMp === 'rejected' || d.estadoMp === 'cancelled' || q.get('pago') === 'fallo') break;
+        d = await api(`/api/pago/estado?c=${encodeURIComponent(c)}${paymentId && paymentId !== 'null' ? '&payment_id=' + encodeURIComponent(paymentId) : ''}`);
+        if (['aprobada', 'excepcion', 'devuelta', 'cancelada', 'vencida'].includes(d.estado)) break;
+        if (d.estadoMp === 'rejected' || d.estadoMp === 'cancelled') break;
+        // Sin ningún pago en Mercado Pago: volvió sin pagar (canceló o cerró el checkout)
+        if (!d.estadoMp && !volvioOk && intentos >= 2) break;
       } catch {}
       await new Promise((r) => setTimeout(r, 3000));
+    }
+    // Si no pagó, liberamos la reserva para que el número no quede tomado
+    if (d && d.estado === 'reservada' && (!d.estadoMp || ['rejected', 'cancelled'].includes(d.estadoMp))) {
+      try {
+        const r = await api('/api/pago/abandonar', { method: 'POST', body: JSON.stringify({ compraId: c }) });
+        if (r.estado) d.estado = r.estado;
+      } catch {}
     }
     if (d) { bolillas($('#r-bolillas'), d.numeros); $('#r-codigo').textContent = 'Código de compra: ' + d.codigo; }
     if (d && d.estado === 'aprobada') {
@@ -435,6 +448,12 @@
       texto.textContent = (d.nota || 'Hubo un problema con tu reserva.') .replace('Devolver el dinero.', '') + ' El organizador te va a devolver el dinero. Si querés, podés elegir otros números.';
       if (reserva && reserva.id === c) { reserva = null; LS.del(K_RES); }
       acc.innerHTML = '<button class="btn oscuro bloque" data-cerrar-r>Entendido</button>';
+    } else if (d && d.estado === 'cancelada') {
+      icono.textContent = '↩️'; titulo.textContent = 'El pago no se completó';
+      texto.textContent = 'No se cobró nada y los números quedaron libres otra vez. Si querés, podés volver a elegirlos.';
+      if (reserva && reserva.id === c) { reserva = null; LS.del(K_RES); }
+      d.numeros.forEach((n) => misNumeros.delete(n)); LS.set(K_MIOS, [...misNumeros]);
+      acc.innerHTML = '<button class="btn oscuro bloque" data-cerrar-r>Elegir números</button>';
     } else if (d && d.estado === 'reservada' && new Date(d.reservado_hasta).getTime() > ahora()) {
       icono.textContent = '↩️'; titulo.textContent = 'El pago no se completó';
       texto.textContent = 'No se cobró nada. Tus números siguen reservados unos minutos más: podés intentar de nuevo con otro medio de pago.';
