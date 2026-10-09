@@ -82,6 +82,7 @@
   function estadoOrg(o) {
     if (o.es_dueno) return ['activa', 'Dueño'];
     if (o.bloqueado) return ['bloqueada', 'Bloqueado'];
+    if (!o.vence) return ['prueba', 'Sin activar'];
     if (!o.activa) return ['vencida', 'Vencido'];
     if (o.en_prueba) return ['prueba', 'En prueba'];
     return ['activa', 'Al día'];
@@ -92,6 +93,7 @@
     $('#m-org').textContent = orgs.length;
     $('#m-activos').textContent = orgs.filter((o) => o.activa && !o.en_prueba).length;
     $('#m-prueba').textContent = orgs.filter((o) => o.activa && o.en_prueba).length;
+    orgs.forEach((o) => { o.vence = o.vence || null; });
     const hace30 = Date.now() - 30 * 86400000;
     $('#m-mes').textContent = pesos(datos.pagos.filter((p) => new Date(p.created_at) > hace30).reduce((s, p) => s + Number(p.monto || 0), 0));
     const c = datos.config;
@@ -110,7 +112,7 @@
       const [cls, txt] = estadoOrg(o);
       return `<div class="org">
         <div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(o.nombre)}</b><span class="estado ${cls}">${txt}</span></div>
-        <div class="meta">${esc(o.email)}${o.celular ? ` · <a href="https://wa.me/549${esc(o.celular)}" target="_blank" rel="noopener">WhatsApp</a>` : ''} · alta ${fecha(o.created_at)}${o.es_dueno ? '' : ` · vence ${fecha(o.vence)}`}<br>
+        <div class="meta">${esc(o.email)}${o.celular ? ` · <a href="https://wa.me/549${esc(o.celular)}" target="_blank" rel="noopener">WhatsApp</a>` : ''} · alta ${fecha(o.created_at)}${o.es_dueno ? '' : o.vence ? ` · vence ${fecha(o.vence)}` : ' · prueba sin activar'}<br>
           ${o.tombolas} tómbola(s) · ${o.vendidos} números vendidos · cobros: ${[o.mp_conectado ? 'Mercado Pago' : '', o.acepta_transferencia && o.alias ? 'transferencia' : ''].filter(Boolean).join(' + ') || 'sin configurar'} · pagó ${pesos(o.pagado_total)}</div>
         ${o.es_dueno ? '' : `<div class="acciones">
           <button class="btn secundario chico" data-ext="${o.id}">Sumar días</button>

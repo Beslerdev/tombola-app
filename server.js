@@ -351,8 +351,8 @@ app.get('/api/mp/oauth/callback', async (req, res) => {
     const d = await r.json();
     if (!r.ok || !d.access_token) { console.error('OAuth MP', JSON.stringify(d)); return res.redirect('/panel?mp=error'); }
     const t = { access_token: d.access_token, refresh_token: d.refresh_token, user_id: String(d.user_id), expires_at: Date.now() + (d.expires_in || 15552000) * 1000 };
-    await rpc('api_org_update', { p_org: orgId, p: { mp_tokens: cifrar(t), mp_user_id: t.user_id } });
-    res.redirect('/panel?mp=ok');
+    const con = await rpc('api_org_conectar_mp', { p_org: orgId, p_tokens: cifrar(t), p_mp_user: t.user_id });
+    res.redirect('/panel?mp=ok&prueba=' + encodeURIComponent(con.prueba || ''));
   } catch (e) { console.error('OAuth MP error', e.message); res.redirect('/panel?mp=error'); }
 });
 

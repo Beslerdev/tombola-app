@@ -174,6 +174,10 @@
     let plan;
     if (org.es_dueno) {
       plan = `<div class="dias">∞</div><div class="txt"><b>Cuenta del dueño</b><br>Sin vencimiento.</div>`;
+    } else if (!org.vence) {
+      plan = `<div class="dias">7</div><div class="txt"><b>días de prueba gratis esperándote.</b><br>Empiezan cuando conectes tu Mercado Pago.</div>
+        <button class="btn chico" id="ir-cobros" type="button">Conectar Mercado Pago</button>
+        <button class="btn secundario chico" id="renovar" type="button">o suscribirme · ${pesos(datos.precioSuscripcion)}</button>`;
     } else {
       const d = diasRestantes(org.vence);
       const vence = new Date(org.vence).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
@@ -187,10 +191,13 @@
     }
     $('#plan').innerHTML = plan;
     const br = $('#renovar'); if (br) br.addEventListener('click', renovar);
+    const ic = $('#ir-cobros'); if (ic) ic.addEventListener('click', () => irTab('cobros'));
 
     // Avisos
     let av = '';
     const cobra = org.mp_conectado || (org.acepta_transferencia && org.alias);
+    if (!org.es_dueno && !org.vence) av += `<div class="aviso info"><b>Tus tómbolas todavía no venden.</b> Conectá tu Mercado Pago para activar los 7 días de prueba gratis, o suscribite directamente. <a href="#cobros" data-ir="cobros">Ir a Cobros</a></div>`;
+    else if (!org.es_dueno && !org.activa) av += `<div class="aviso error"><b>Tus tómbolas están suspendidas.</b> Renová la suscripción para que vuelvan a vender.</div>`;
     if (!org.es_dueno && org.activa && diasRestantes(org.vence) <= 3) av += `<div class="aviso info"><b>Te quedan ${diasRestantes(org.vence)} días.</b> Renová para que tus tómbolas sigan vendiendo sin cortes.</div>`;
     if (!cobra) av += `<div class="aviso error"><b>Todavía no configuraste cómo cobrar.</b> Nadie puede comprar números hasta que lo hagas. <a href="#cobros" data-ir="cobros">Configurar cobros</a></div>`;
     $('#avisos').innerHTML = av;
@@ -226,7 +233,7 @@
     $('#mp-acciones').innerHTML = org.mp_conectado
       ? `<p style="margin:0 0 10px;color:var(--ok);font-size:14px">Cuenta de Mercado Pago conectada${org.mp_conectado_at ? ' el ' + new Date(org.mp_conectado_at).toLocaleDateString('es-AR') : ''}.</p><button class="btn secundario chico" id="mp-off" type="button">Desconectar</button>`
       : datos.oauthDisponible
-        ? '<button class="btn mp" id="mp-on" type="button">Conectar con Mercado Pago</button><p style="margin:8px 0 0;font-size:12.5px">Vas a ingresar con tu cuenta de Mercado Pago y autorizar a Tutombola! a crear cobros a tu nombre.</p>'
+        ? `<button class="btn mp" id="mp-on" type="button">Conectar con Mercado Pago</button><p style="margin:8px 0 0;font-size:12.5px">Vas a ingresar con tu cuenta de Mercado Pago y autorizar a Tutombola! a crear cobros a tu nombre.${org.prueba_disponible ? ' <b>Al conectarla empiezan tus 7 días de prueba gratis</b> (una prueba por cuenta de Mercado Pago).' : ''}</p>`
         : '<p style="margin:0;font-size:13.5px"><b>Disponible muy pronto.</b> Mientras tanto podés cobrar por transferencia.</p>';
     const on = $('#mp-on'); if (on) on.addEventListener('click', conectarMp);
     const off = $('#mp-off'); if (off) off.addEventListener('click', desconectarMp);
@@ -291,9 +298,16 @@
     const q = new URLSearchParams(location.search);
     if (location.hash) irTab(location.hash.slice(1));
     try { await cargar(); } catch (e) { toast(e.message); return; }
-    if (q.get('mp') === 'ok') { irTab('cobros'); toast('¡Mercado Pago conectado!'); }
+    if (q.get('mp') === 'ok') {
+      irTab('cobros');
+      const pr = q.get('prueba');
+      if (pr === 'otorgada') toast('¡Mercado Pago conectado! Empezaron tus 7 días de prueba gratis.');
+      else if (pr === 'usada') {
+        await preguntar({ titulo: 'Mercado Pago conectado', texto: 'Esa cuenta de Mercado Pago ya usó la prueba gratis en otra cuenta de Tutombola!, así que no se puede repetir.\n\nPara que tus tómbolas empiecen a vender, suscribite.', si: 'Entendido', no: 'Cerrar' });
+      } else toast('¡Mercado Pago conectado!');
+    }
     if (q.get('mp') === 'error') { irTab('cobros'); toast('No se pudo conectar Mercado Pago. Probá de nuevo.'); }
-    if (q.get('bienvenida')) toast('¡Bienvenido a Tutombola! Tenés 7 días de prueba gratis.');
+    if (q.get('bienvenida')) toast('¡Bienvenido a Tutombola! Conectá tu Mercado Pago para empezar tus 7 días gratis.');
     if (q.get('sub')) {
       const pid = q.get('payment_id') || q.get('collection_id');
       if (q.get('sub') === 'ok' && pid) {
