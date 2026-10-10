@@ -520,10 +520,15 @@ app.get('/api/pago/estado', wrap(async (req, res) => {
   const token = await tokenOrg(c.organizador_id);
   if (token) {
     const paymentId = String(req.query.payment_id || '').replace(/\D/g, '');
+    let consultado = false;
     if (paymentId) {
-      const r = await procesarPago(c.organizador_id, paymentId);
-      if (r.compra === compraId) estadoMp = r.estado;
-    } else {
+      // Si el número de operación del link no es válido o es de otra compra, se ignora y se busca por la reserva
+      try {
+        const r = await procesarPago(c.organizador_id, paymentId);
+        if (r.compra === compraId) { estadoMp = r.estado; consultado = true; }
+      } catch (e) { console.warn('payment_id del link no válido, se busca por la reserva', paymentId); }
+    }
+    if (!consultado) {
       const s = await mp(token, `/v1/payments/search?external_reference=${compraId}&sort=date_created&criteria=desc&limit=10`);
       for (const p of (s.results || [])) {
         if (p.status === 'approved') { await procesarPago(c.organizador_id, p.id); estadoMp = 'approved'; break; }

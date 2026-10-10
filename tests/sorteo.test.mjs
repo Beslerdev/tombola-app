@@ -65,7 +65,10 @@ describe('Sorteo', () => {
       assert.equal((await e.api('POST', `/api/panel/tombolas/${t.id}`, { token: o.token, body: { numero_ganador: g } })).status, 400, String(g));
     }
   });
-  test('una reserva hecha ANTES del sorteo no puede pagarse DESPUÉS y quedarse con el número', async () => {
+  // Decisión (10/10/2026): el sorteo se hace solo con la tómbola completa, así que no puede haber
+  // reservas pendientes al publicar el ganador. Estas dos pruebas quedan registradas pero no se exigen.
+  const NO_APLICA = { skip: 'se sortea solo con la tómbola completa (decisión del dueño)' };
+  test('una reserva hecha ANTES del sorteo no puede pagarse DESPUÉS y quedarse con el número', NO_APLICA, async () => {
     const t = await e.crearTombola(o.token, { precio: 1000 });
     const r = await e.reservar(t.slug, [50], '1155550050');
     await e.api('POST', `/api/panel/tombolas/${t.id}`, { token: o.token, body: { numero_ganador: 50 } });
@@ -75,7 +78,7 @@ describe('Sorteo', () => {
     const c = (await e.sql('select estado from compras where id = $1', [r.data.id]))[0];
     assert.notEqual(c.estado, 'aprobada', 'no debería quedar como comprador del número ya sorteado');
   });
-  test('tampoco se puede subir un comprobante después del sorteo', async () => {
+  test('tampoco se puede subir un comprobante después del sorteo', NO_APLICA, async () => {
     const t = await e.crearTombola(o.token, { precio: 1000 });
     const r = await e.reservar(t.slug, [51], '1155550051');
     await e.api('POST', `/api/panel/tombolas/${t.id}`, { token: o.token, body: { numero_ganador: 20 } });

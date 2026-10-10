@@ -138,6 +138,23 @@ describe('Mercado Pago: seguridad entre organizadores', () => {
   });
 });
 
+describe('Vuelta del checkout con un número de operación inválido', () => {
+  test('muestra el estado real de la reserva en lugar de un error', async () => {
+    const r = await e.reservar(tA.slug, [31], '1150000031');
+    for (const pid of ['999999999', 'null', 'abc']) {
+      const s = await e.api('GET', `/api/pago/estado?c=${r.data.id}&payment_id=${pid}`);
+      assert.equal(s.status, 200, `payment_id=${pid}`);
+      assert.equal(s.data.estado, 'reservada');
+    }
+  });
+  test('si el link trae un número inválido pero la compra sí se pagó, la confirma igual', async () => {
+    const r = await e.reservar(tA.slug, [32], '1150000032');
+    e.mp.agregarPago({ userId: MP_A, external_reference: r.data.id, monto: 1000 });
+    const s = await e.api('GET', `/api/pago/estado?c=${r.data.id}&payment_id=999999999`);
+    assert.equal(s.data.estado, 'aprobada');
+  });
+});
+
 describe('Transferencia con comprobante', () => {
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64').toString('base64');
 
