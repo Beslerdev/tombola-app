@@ -1,0 +1,13 @@
+{
+  "name": "tutombola-tests",
+  "private": true,
+  "description": "Pruebas automáticas de Tutombola! (no se instalan en producción)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-concurrency=1 --test-reporter=spec ./*.test.mjs"
+  },
+  "dependencies": {
+    "embedded-postgres": "18.4.0-beta.17",
+    "pg": "8.23.1"
+  }
+}

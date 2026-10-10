@@ -31,6 +31,16 @@ Plataforma para que organizadores vendan tómbolas 00–99 online.
 | `MP_CLIENT_ID`, `MP_CLIENT_SECRET` | Aplicación de Mercado Pago para "Conectar con Mercado Pago" (OAuth). Redirect URI: `<PUBLIC_URL>/api/mp/oauth/callback` |
 | `PRECIO_SUSCRIPCION`, `DIAS_SUSCRIPCION` | Por defecto 12000 y 30 |
 
+## Pruebas automáticas
+
+La carpeta `tests/` tiene pruebas que levantan un entorno aislado (Postgres temporal con el esquema de `base-de-datos/`, simuladores de Supabase y Mercado Pago, y el servidor real). No tocan la app publicada ni la base real.
+
+```
+cd tests
+npm install
+npm test
+```
+
 ## Datos
 
 Tablas: `organizadores`, `tombolas`, `casilleros` (100 por tómbola), `compras`, `comprobantes`, `pagos`, `pagos_suscripcion`. Todas con RLS sin políticas; el acceso es solo por funciones `api_*` que exigen `DB_API_KEY`. Las tablas `config` y `numeros` quedaron de la versión de una sola tómbola y no se usan.
