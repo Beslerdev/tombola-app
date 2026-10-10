@@ -77,6 +77,10 @@ main { max-width: 720px; margin: 0 auto; padding: 16px 16px 120px; }
 .aviso.completa .grande { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 800; display: block; margin-bottom: 2px; color: var(--oro); }
 .aviso.ganador { background: var(--oro); color: var(--tinta); }
 .aviso.ganador .grande { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; font-weight: 800; display: block; }
+.aviso.ganador .ganador-fila { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 14px; }
+.aviso.ganador .ganador-nombre { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 800; }
+.aviso.ganador .ganador-mio { margin-top: 8px; background: rgba(255,255,255,.55); border-radius: 10px; padding: 8px 10px; font-weight: 700; }
+.aviso.ganador .ganador-det { margin-top: 6px; font-size: 13.5px; }
 .aviso.info { background: var(--warn-bg); border-color: #f2d9a8; }
 .aviso.error { background: var(--err-bg); border-color: #f6c3bc; color: var(--err); }
 .aviso.ok { background: var(--ok-bg); border-color: #bfe3cd; color: #135c3c; }

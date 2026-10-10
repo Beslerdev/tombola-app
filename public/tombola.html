@@ -238,7 +238,16 @@
     const vendidos = numeros.filter((x) => x.e === 'pagado').length;
     const partes = [];
     if (config.numero_ganador !== null && config.numero_ganador !== undefined) {
-      partes.push(`<div class="aviso ganador"><span class="grande">Número ganador: ${pad(config.numero_ganador)}</span>${esc(config.detalle_ganador || '')}</div>`);
+      const g = config.numero_ganador;
+      const esMio = misNumeros.has(g) && numeros[g] && numeros[g].e === 'pagado';
+      const quien = config.ganador_nombre
+        ? `<span class="ganador-nombre">🏆 ${esc(config.ganador_nombre)}</span>`
+        : '<span class="ganador-nombre" style="font-weight:600">Número no vendido</span>';
+      partes.push(`<div class="aviso ganador">
+        <div class="ganador-fila"><span class="grande">Número ganador: ${pad(g)}</span>${quien}</div>
+        ${esMio ? '<div class="ganador-mio">🎉 ¡Es tu número! Felicitaciones, el organizador se va a comunicar con vos.</div>' : ''}
+        ${config.detalle_ganador ? `<div class="ganador-det">${esc(config.detalle_ganador)}</div>` : ''}
+      </div>`);
     } else if (suspendida) {
       partes.push('<div class="aviso info"><b>Tómbola suspendida momentáneamente.</b> No se pueden comprar números por ahora. Los números ya comprados se mantienen.</div>');
     } else if (config.estado === 'pausada') {
