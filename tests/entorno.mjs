@@ -86,6 +86,16 @@ export class MercadoPagoFalso {
         const results = this.pagos.filter((p) => p.token === token && p.external_reference === ref).reverse();
         return json(200, { results });
       }
+      const rf = url.pathname.match(/^\/v1\/payments\/(\d+)\/refunds$/);
+      if (rf && req.method === 'POST') {
+        const p = this.pagos.find((x) => x.id === Number(rf[1]) && x.token === token);
+        if (!p) return json(404, { message: 'Payment not found' });
+        if (p.status === 'refunded') return json(400, { message: 'Payment already refunded' });
+        if (p.status !== 'approved') return json(400, { message: 'Invalid payment status' });
+        p.status = 'refunded';
+        this.reembolsos = (this.reembolsos || 0) + 1;
+        return json(201, { id: 9000 + this.reembolsos, payment_id: p.id, amount: p.transaction_amount, status: 'approved' });
+      }
       const m = url.pathname.match(/^\/v1\/payments\/(\d+)$/);
       if (m) {
         const p = this.pagos.find((x) => x.id === Number(m[1]) && x.token === token);

@@ -75,6 +75,7 @@ create table public.compras (
   mp_payment_id text,
   metodo_pago text,
   pagado_at timestamptz,
+  reembolso_id text,                                -- id de la devolución en Mercado Pago
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

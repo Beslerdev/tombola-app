@@ -322,6 +322,31 @@ app.post('/api/panel/compras/:id/rechazar', soloOrg, wrap(async (req, res) => {
   await rpc('api_admin_rechazar', { p_compra: req.params.id, p_nota: String((req.body && req.body.nota) || '').slice(0, 300) });
   res.json({ ok: true });
 }));
+// Anular una compra pagada con Mercado Pago y devolver el dinero automáticamente (desde la cuenta del organizador)
+app.post('/api/panel/compras/:id/devolver', soloOrg, wrap(async (req, res) => {
+  const c = await compraPropia(req);
+  if (!['aprobada', 'excepcion'].includes(c.estado)) throw errorPublico(400, 'Esta compra no se puede devolver en su estado actual.');
+  const lista = await rpc('api_admin_compras', { p_tombola: c.tombola_id });
+  const det = lista.find((x) => x.id === c.id);
+  if (!det || !det.mp_payment_id) throw errorPublico(400, 'Esta compra no se pagó con Mercado Pago. Devolvé el dinero a mano y usá "Anular".');
+  const token = await tokenOrg(req.org.id);
+  if (!token) throw errorPublico(400, 'Tu cuenta de Mercado Pago no está conectada. Conectala desde Cobros para devolver automáticamente.');
+  let reembolso;
+  try {
+    reembolso = await mp(token, `/v1/payments/${encodeURIComponent(det.mp_payment_id)}/refunds`, {
+      method: 'POST', headers: { 'X-Idempotency-Key': `refund-${c.id}` }, body: '{}',
+    });
+  } catch (e) {
+    // Si ya estaba devuelto en Mercado Pago (por ejemplo, desde la app de MP), lo registramos igual
+    const p = await mp(token, `/v1/payments/${encodeURIComponent(det.mp_payment_id)}`).catch(() => null);
+    if (p && p.status === 'refunded') reembolso = { id: 'ya-devuelto' };
+    else throw errorPublico(502, 'Mercado Pago no pudo hacer la devolución. Probá de nuevo o devolvé desde tu cuenta de Mercado Pago.');
+  }
+  const nota = String((req.body && req.body.nota) || 'Compra anulada. Se devolvió el dinero.').slice(0, 300);
+  await rpc('api_admin_devolver', { p_compra: c.id, p_nota: nota, p_reembolso: String(reembolso.id || '') });
+  res.json({ ok: true, reembolso: reembolso.id || null });
+}));
+
 app.post('/api/panel/compras/:id/devuelta', soloOrg, wrap(async (req, res) => {
   await compraPropia(req); await rpc('api_admin_marcar_devuelta', { p_compra: req.params.id }); res.json({ ok: true });
 }));

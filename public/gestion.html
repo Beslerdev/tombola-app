@@ -277,8 +277,7 @@
       <div class="acciones">
         ${c.tiene_comprobante ? `<button class="btn secundario chico" data-ver="${c.id}">Ver comprobante</button>` : ''}
         ${conAcciones && c.estado === 'pendiente' ? `<button class="btn verde chico" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario chico" data-rechazar="${c.id}">Rechazar</button>` : ''}
-        ${conAcciones && c.estado === 'aprobada' ? `<button class="btn link chico" data-rechazar="${c.id}">Anular</button>` : ''}
-        ${conAcciones && c.estado === 'excepcion' ? `<button class="btn oscuro chico" data-devuelta="${c.id}">Ya devolví el dinero</button>` : ''}
+        ${conAcciones ? accionesCompra(c) : ''}
       </div>
     </div>`;
   }
@@ -309,17 +308,50 @@
     });
     if (numSel !== null) detalleNumero(numSel);
   }
+  // Botones de acción según el estado de la compra (se usan en Compras y en la Grilla)
+  function accionesCompra(c, enGrilla) {
+    const mp = !!c.mp_payment_id;
+    if (c.estado === 'reservada') return enGrilla ? `<button class="btn secundario chico" data-rechazar="${c.id}">Liberar reserva</button>` : '';
+    if (c.estado === 'pendiente') return `${enGrilla && c.tiene_comprobante ? `<button class="btn secundario chico" data-ver="${c.id}">Ver comprobante</button>` : ''}<button class="btn verde chico" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario chico" data-rechazar="${c.id}">Rechazar</button>`;
+    if (c.estado === 'aprobada') return mp
+      ? `<button class="btn secundario chico" data-devolver="${c.id}">${enGrilla ? 'Liberar y devolver el dinero' : 'Anular y devolver el dinero'}</button><button class="btn link chico" data-rechazar="${c.id}">${enGrilla ? 'Liberar sin devolver' : 'Anular sin devolver'}</button>`
+      : `<button class="btn secundario chico" data-rechazar="${c.id}">${enGrilla ? 'Liberar número' : 'Anular'}</button>`;
+    if (c.estado === 'excepcion') return `${mp ? `<button class="btn oscuro chico" data-devolver="${c.id}">Devolver automáticamente</button>` : ''}<button class="btn ${mp ? 'link' : 'oscuro'} chico" data-devuelta="${c.id}">Ya devolví el dinero</button>`;
+    if (c.estado === 'devuelta' && c.reembolso_id) return '<span class="total-recaudado">✓ Dinero devuelto por Mercado Pago</span>';
+    return '';
+  }
+
   function detalleNumero(n) {
     const x = datos.numeros[n];
-    const txt = { libre: 'Libre', reservado: 'Reservado (esperando comprobante)', pendiente: 'Comprobante por verificar', pagado: 'Vendido' }[x.e];
-    $('#detalle-num').innerHTML = `<div class="aviso ${x.e === 'pagado' ? 'ok' : 'info'}"><b>Número ${pad(n)}</b> · ${txt}${x.nombre ? `<br>${esc(x.nombre)} · <a href="${wa(x.celular)}" target="_blank" rel="noopener">${esc(x.celular)}</a> · Código ${esc(x.codigo)}` : ''}</div>`;
+    const c = x.codigo ? datos.compras.find((k) => k.codigo === x.codigo) : null;
+    const txt = { libre: 'Libre', reservado: 'Reservado (esperando el pago)', pendiente: 'Comprobante por verificar', pagado: 'Vendido' }[x.e];
+    const otros = c && c.numeros.length > 1 ? `<br><span style="font-size:13px">Esta compra incluye los números ${c.numeros.map(pad).join(', ')}.</span>` : '';
+    $('#detalle-num').innerHTML = `<div class="aviso ${x.e === 'pagado' ? 'ok' : 'info'}"><b>Número ${pad(n)}</b> · ${txt}${x.nombre ? `<br>${esc(x.nombre)} · <a href="${wa(x.celular)}" target="_blank" rel="noopener">${esc(x.celular)}</a> · Código ${esc(x.codigo)}` : ''}${otros}
+      ${c ? `<div class="acciones">${accionesCompra(c, true)}</div>` : ''}</div>`;
   }
   $('#a-grilla').addEventListener('click', (ev) => { const b = ev.target.closest('.celda'); if (!b) return; numSel = Number(b.dataset.n); pintarGrilla(); });
 
   // ---------- Acciones ----------
   document.addEventListener('click', async (ev) => {
-    const t = ev.target.closest('[data-ver],[data-aprobar],[data-rechazar],[data-devuelta]'); if (!t) return;
+    const t = ev.target.closest('[data-ver],[data-aprobar],[data-rechazar],[data-devuelta],[data-devolver]'); if (!t) return;
     if (t.dataset.ver) return verComprobante(t.dataset.ver);
+    if (t.dataset.devolver) {
+      const c = datos.compras.find((x) => x.id === t.dataset.devolver);
+      const yaLibres = c.estado === 'excepcion';
+      const nota = await preguntar({
+        titulo: `Devolver ${pesos(c.monto)} a ${c.nombre}`,
+        texto: `Mercado Pago le va a devolver el dinero automáticamente${c.mp_payment_id ? ' (operación ' + c.mp_payment_id + ')' : ''}.${yaLibres ? '' : `\nLos números ${c.numeros.map(pad).join(', ')} quedarán libres.`}\nEsta acción no se puede deshacer.`,
+        campo: 'Motivo (lo verá el participante)', valor: 'Compra anulada. Se devolvió el dinero.',
+        si: 'Devolver el dinero', peligro: true,
+      });
+      if (nota === null) return;
+      t.disabled = true; t.innerHTML = '<span class="spinner" style="border-color:rgba(0,0,0,.2);border-top-color:#333"></span> Devolviendo…';
+      try {
+        await api('/api/panel/compras/' + c.id + '/devolver', { method: 'POST', body: JSON.stringify({ nota }) });
+        toast('Listo: dinero devuelto' + (yaLibres ? '.' : ' y números liberados.')); cerrarModal(); await cargar();
+      } catch (e) { toast(e.message); t.disabled = false; pintar(); }
+      return;
+    }
     if (t.dataset.devuelta) {
       const c = datos.compras.find((x) => x.id === t.dataset.devuelta);
       if (!(await preguntar({ titulo: '¿Ya devolviste el dinero?', texto: `${pesos(c.monto)} a ${c.nombre}.\nLo podés devolver desde la actividad de Mercado Pago${c.mp_payment_id ? ', operación ' + c.mp_payment_id : ''}.`, si: 'Sí, ya lo devolví' }))) return;
@@ -334,14 +366,15 @@
     if (t.dataset.rechazar) {
       const c = datos.compras.find((x) => x.id === t.dataset.rechazar);
       const anular = c.estado === 'aprobada';
+      const reserva = c.estado === 'reservada';
       const nota = await preguntar({
-        titulo: `${anular ? 'Anular' : 'Rechazar'} la compra de ${c.nombre}`,
-        texto: `Los números ${c.numeros.map(pad).join(', ')} quedarán libres.${anular && c.mp_payment_id ? '\nRecordá devolver el pago desde Mercado Pago.' : ''}`,
-        campo: 'Motivo (lo verá el participante)', valor: anular ? 'Compra anulada' : 'No se verificó el pago',
-        si: anular ? 'Anular compra' : 'Rechazar', peligro: true,
+        titulo: reserva ? `Liberar la reserva de ${c.nombre}` : `${anular ? 'Anular' : 'Rechazar'} la compra de ${c.nombre}`,
+        texto: `Los números ${c.numeros.map(pad).join(', ')} quedarán libres.${anular ? (c.mp_payment_id ? '\nNo se devuelve el dinero: hacelo vos desde tu cuenta de Mercado Pago.' : '\nRecordá devolverle el dinero.') : ''}`,
+        campo: 'Motivo (lo verá el participante)', valor: anular ? 'Compra anulada' : reserva ? 'Reserva liberada por el organizador' : 'No se verificó el pago',
+        si: reserva ? 'Liberar' : anular ? 'Anular compra' : 'Rechazar', peligro: true,
       });
       if (nota === null) return;
-      try { await api('/api/panel/compras/' + c.id + '/rechazar', { method: 'POST', body: JSON.stringify({ nota }) }); toast('Compra rechazada. Números liberados.'); cerrarModal(); await cargar(); }
+      try { await api('/api/panel/compras/' + c.id + '/rechazar', { method: 'POST', body: JSON.stringify({ nota }) }); toast(reserva ? 'Reserva liberada.' : 'Listo. Números liberados.'); cerrarModal(); await cargar(); }
       catch (e) { toast(e.message); }
     }
   });

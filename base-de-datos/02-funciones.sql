@@ -416,7 +416,7 @@ begin
   perform liberar_vencidas();
   return coalesce((select json_agg(row_to_json(x) order by x.created_at desc) from (
     select c.id, c.codigo, c.nombre, c.celular, c.numeros, c.estado, c.nota_admin, c.reservado_hasta, c.created_at, c.updated_at,
-           c.monto, c.mp_payment_id, c.metodo_pago, c.pagado_at,
+           c.monto, c.mp_payment_id, c.metodo_pago, c.pagado_at, c.reembolso_id,
            (cb.compra_id is not null) as tiene_comprobante, cb.mime
       from compras c left join comprobantes cb on cb.compra_id = c.id
      where c.tombola_id = p_tombola and c.estado <> 'cancelada') x), '[]'::json);
@@ -452,6 +452,17 @@ begin
   perform _chk(p_key);
   update compras set estado = 'devuelta', updated_at = now() where id = p_compra and estado = 'excepcion';
   if not found then raise exception 'ESTADO_INVALIDO'; end if;
+end $$;
+
+-- Anula una compra pagada (o en excepción) registrando la devolución hecha en Mercado Pago y libera sus números
+create or replace function public.api_admin_devolver(p_key text, p_compra uuid, p_nota text, p_reembolso text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform _chk(p_key);
+  update compras set estado = 'devuelta', nota_admin = coalesce(nullif(p_nota, ''), nota_admin), reembolso_id = p_reembolso, updated_at = now()
+   where id = p_compra and estado in ('aprobada', 'excepcion');
+  if not found then raise exception 'ESTADO_INVALIDO'; end if;
+  update casilleros set estado = 'libre', compra_id = null, reservado_hasta = null where compra_id = p_compra;
 end $$;
 
 -- =====================================================================
@@ -490,7 +501,7 @@ grant execute on function
   public.api_reservar(text, uuid, int[], text, text), public.api_mis_compras(text, uuid, text), public.api_compra(text, uuid),
   public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text),
   public.api_admin_compras(text, uuid), public.api_admin_numeros(text, uuid), public.api_admin_ver_comprobante(text, uuid),
-  public.api_admin_aprobar(text, uuid), public.api_admin_rechazar(text, uuid, text), public.api_admin_marcar_devuelta(text, uuid),
+  public.api_admin_aprobar(text, uuid), public.api_admin_rechazar(text, uuid, text), public.api_admin_marcar_devuelta(text, uuid), public.api_admin_devolver(text, uuid, text, text),
   public.api_registrar_pago(text, uuid, text, numeric, text), public.api_registrar_evento_pago(text, text, uuid, numeric, text, text),
   public.api_dueno_resumen(text), public.api_dueno_bloquear(text, uuid, boolean)
 to anon;
