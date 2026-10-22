@@ -110,9 +110,10 @@
     <div class="caja-pago">
       <div class="fila"><span>Total a pagar</span><span class="total" id="p-total">$0</span></div>
       <div class="fila p-manual"><span>Alias</span><span class="valor"><span id="p-alias">—</span><button class="copiar" type="button" id="p-copiar">Copiar</button></span></div>
-      <div class="fila oculto" id="p-fila-titular"><span>Titular</span><span class="valor" id="p-titular"></span></div>
+      <div class="fila oculto p-manual" id="p-fila-titular"><span>Titular</span><span class="valor" id="p-titular"></span></div>
       <div class="fila"><span>Código de reserva</span><span class="valor" id="p-codigo">—</span></div>
     </div>
+    <div class="metodos oculto" id="p-metodos" role="tablist" aria-label="Forma de pago"></div>
     <div id="p-online" class="oculto">
       <div id="p-error-online"></div>
       <button class="btn bloque mp" id="p-mp" type="button">Pagar con Mercado Pago</button>
@@ -131,6 +132,11 @@
     <div id="p-error" style="margin-top:12px"></div>
     <button class="btn bloque" id="p-enviar" type="button" style="margin-top:14px" disabled>Enviar comprobante</button>
     </div>
+    <div id="p-efectivo" class="oculto">
+      <div class="aviso info" id="p-efectivo-txt" style="margin:0"></div>
+      <div id="p-error-efectivo"></div>
+      <button class="btn bloque oscuro" id="p-efectivo-ok" type="button" style="margin-top:12px">Confirmar pago en efectivo</button>
+    </div>
     <button class="btn link bloque" id="p-cancelar" type="button">Cancelar reserva</button>
   </div>
 </div>
@@ -138,9 +144,9 @@
 <!-- Modal resultado -->
 <div class="velo oculto" id="m-listo" role="dialog" aria-modal="true" aria-labelledby="m-listo-t">
   <div class="modal" style="text-align:center">
-    <div style="font-size:44px">🎟️</div>
+    <div style="font-size:44px" id="l-icono">🎟️</div>
     <h2 id="m-listo-t">¡Comprobante recibido!</h2>
-    <p class="sub">El organizador va a verificar el pago. Cuando lo apruebe, tus números quedan confirmados a tu nombre.</p>
+    <p class="sub" id="l-sub">El organizador va a verificar el pago. Cuando lo apruebe, tus números quedan confirmados a tu nombre.</p>
     <div class="bolillas" id="l-bolillas" style="justify-content:center;margin-bottom:18px"></div>
     <button class="btn oscuro bloque" type="button" id="l-ver">Ver mis números</button>
     <button class="btn link bloque" type="button" data-cerrar>Cerrar</button>
@@ -176,7 +182,7 @@
   const SLUG = decodeURIComponent(location.pathname.split('/')[2] || '');
   const K_RES = 'tt_res_' + SLUG, K_MIOS = 'tt_mios_' + SLUG;
   let config = null;
-  let pagosOnline = false, pagoManual = false, activa = true, suspendida = false;
+  let pagosOnline = false, pagoManual = false, pagoEfectivo = false, activa = true, suspendida = false;
   let numeros = [];
   let desfase = 0; // servidor - cliente (ms)
   const seleccion = new Set();
@@ -208,8 +214,8 @@
   async function cargar() {
     try {
       const d = await api(`/api/t/${SLUG}`);
-      config = { ...d.tombola, alias: d.organizador.alias, titular: d.organizador.titular, organizador: d.organizador.nombre };
-      numeros = d.numeros; pagosOnline = !!d.medios.mp; pagoManual = !!d.medios.transferencia;
+      config = { ...d.tombola, alias: d.organizador.alias, titular: d.organizador.titular, organizador: d.organizador.nombre, efectivo_horas: d.organizador.efectivo_horas || 48 };
+      numeros = d.numeros; pagosOnline = !!d.medios.mp; pagoManual = !!d.medios.transferencia; pagoEfectivo = !!d.medios.efectivo;
       activa = !!d.activa; suspendida = !!d.suspendida;
       desfase = new Date(d.ahora).getTime() - Date.now();
       pintarCabecera(); pintarGrilla(); pintarAvisos(); pintarBarra();
@@ -308,7 +314,7 @@
 
   $('#b-reservar').addEventListener('click', () => {
     if (!seleccion.size) return;
-    if (!pagosOnline && !pagoManual) { toast('El organizador todavía no configuró cómo cobrar.'); return; }
+    if (!pagosOnline && !pagoManual && !pagoEfectivo) { toast('El organizador todavía no configuró cómo cobrar.'); return; }
     bolillas($('#d-bolillas'), [...seleccion].sort((a, b) => a - b));
     $('#d-nombre').value = LS.get('tombola_nombre') || '';
     $('#d-cel').value = LS.get('tombola_celular') || '';
@@ -353,13 +359,14 @@
     if (!reserva) return;
     bolillas($('#p-bolillas'), reserva.numeros);
     $('#p-total').textContent = pesos(reserva.monto || reserva.numeros.length * (reserva.precio || config.precio));
-    mostrarManual(!pagosOnline);
-    $('#p-online').classList.toggle('oculto', !pagosOnline);
-    $('#p-otro').classList.toggle('oculto', !(pagosOnline && pagoManual));
-    $('#p-sub').textContent = pagosOnline
-      ? 'Tus números están reservados. Pagá antes de que termine el tiempo y quedan confirmados al instante.'
-      : 'Tus números están reservados. Transferí y subí el comprobante antes de que termine el tiempo.';
-    aviso($('#p-error-online'), '', '');
+    const metodos = [pagosOnline && 'mp', pagoManual && 'transf', pagoEfectivo && 'efectivo'].filter(Boolean);
+    const nombres = { mp: 'Mercado Pago', transf: 'Transferencia', efectivo: 'Efectivo' };
+    const sel = $('#p-metodos');
+    sel.innerHTML = metodos.map((m) => `<button type="button" role="tab" data-metodo="${m}">${nombres[m]}</button>`).join('');
+    sel.classList.toggle('oculto', metodos.length < 2);
+    sel.querySelectorAll('[data-metodo]').forEach((b) => b.addEventListener('click', () => elegirMetodo(b.dataset.metodo)));
+    elegirMetodo(metodos[0] || 'transf');
+    aviso($('#p-error-online'), '', ''); aviso($('#p-error-efectivo'), '', '');
     $('#p-alias').textContent = config.alias;
     $('#p-titular').textContent = config.titular || '';
     $('#p-fila-titular').classList.toggle('oculto', !config.titular);
@@ -393,6 +400,39 @@
     if (cerrarModal) { clearInterval(relojTimer); cerrar('#m-pago'); }
     cargar();
   }
+
+  function elegirMetodo(m) {
+    document.querySelectorAll('#p-metodos [data-metodo]').forEach((b) => { b.classList.toggle('activo', b.dataset.metodo === m); b.setAttribute('aria-selected', String(b.dataset.metodo === m)); });
+    $('#p-online').classList.toggle('oculto', m !== 'mp');
+    mostrarManual(m === 'transf');
+    $('#p-fila-titular').classList.toggle('oculto', m !== 'transf' || !config.titular);
+    $('#p-efectivo').classList.toggle('oculto', m !== 'efectivo');
+    $('#p-otro').classList.add('oculto');
+    const h = config.efectivo_horas;
+    $('#p-sub').textContent = {
+      mp: 'Tus números están reservados. Pagá antes de que termine el tiempo y quedan confirmados al instante.',
+      transf: 'Tus números están reservados. Transferí y subí el comprobante antes de que termine el tiempo.',
+      efectivo: 'Tus números están reservados. Confirmá que vas a pagar en efectivo antes de que termine el tiempo.',
+    }[m];
+    $('#p-efectivo-txt').innerHTML = `Coordiná el pago en efectivo con <b>${esc(config.organizador)}</b>. Al confirmar, tus números quedan apartados <b>${h} horas</b>: cuando el organizador reciba el pago, quedan confirmados a tu nombre. Si no se paga en ese plazo, se liberan.`;
+  }
+
+  $('#p-efectivo-ok').addEventListener('click', async () => {
+    if (!reserva || !reservaActiva()) return;
+    const btn = $('#p-efectivo-ok'); btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Confirmando…';
+    try {
+      const r = await api('/api/efectivo', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular }) });
+      const hasta = new Date(r.hasta).toLocaleString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' });
+      $('#l-icono').textContent = '💵';
+      $('#m-listo-t').textContent = '¡Reserva confirmada!';
+      $('#l-sub').innerHTML = `Pagale en efectivo a <b>${esc(config.organizador)}</b> antes del <b>${esc(hasta)}</b> y mencioná el código <b>${esc(reserva.codigo)}</b>. Cuando lo reciba, tus números quedan confirmados a tu nombre.`;
+      bolillas($('#l-bolillas'), reserva.numeros);
+      finReserva(true);
+      abrir('#m-listo');
+    } catch (e) {
+      aviso($('#p-error-efectivo'), 'error', esc(e.message));
+    } finally { btn.disabled = false; btn.textContent = 'Confirmar pago en efectivo'; }
+  });
 
   function mostrarManual(si) { document.querySelectorAll('.p-manual').forEach((el) => el.classList.toggle('oculto', !si)); }
   $('#p-otro').addEventListener('click', () => { mostrarManual(true); $('#p-otro').classList.add('oculto'); });
@@ -527,6 +567,8 @@
       const f = await comprimir(archivo);
       const tipo = f.type || (f.name.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
       await api('/api/comprobante', { method: 'POST', body: JSON.stringify({ compraId: reserva.id, celular: reserva.celular, mime: tipo, nombreArchivo: f.name, b64: await aBase64(f) }) });
+      $('#l-icono').textContent = '🎟️'; $('#m-listo-t').textContent = '¡Comprobante recibido!';
+      $('#l-sub').textContent = 'El organizador va a verificar el pago. Cuando lo apruebe, tus números quedan confirmados a tu nombre.';
       bolillas($('#l-bolillas'), reserva.numeros);
       finReserva(true);
       abrir('#m-listo');
@@ -558,7 +600,7 @@
   }
   document.querySelectorAll('.pestanas button').forEach((b) => b.addEventListener('click', () => irTab(b.dataset.tab)));
 
-  const TXT = { reservada: 'Reservado · falta pagar', pendiente: 'En verificación', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida', excepcion: 'Pago a devolver', devuelta: 'Pago devuelto' };
+  const TXT = { reservada: 'Reservado · falta pagar', pendiente: 'En verificación', pendiente_efectivo: 'A pagar en efectivo', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida', excepcion: 'Pago a devolver', devuelta: 'Pago devuelto' };
 
   async function verMios(cel) {
     if (!cel) return;
@@ -576,10 +618,11 @@
       html += lista.map((c) => `
         <div class="compra">
           <div class="compra-cab">
-            <span class="estado ${c.estado}">${TXT[c.estado] || c.estado}</span>
+            <span class="estado ${c.estado}">${(c.estado === 'pendiente' && c.metodo_pago === 'efectivo' ? TXT.pendiente_efectivo : TXT[c.estado]) || c.estado}</span>
             <span class="cod">Código ${esc(c.codigo)} · ${new Date(c.created_at).toLocaleDateString('es-AR')}</span>
           </div>
           <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla clara">${pad(n)}</span>`).join('')}</div>
+          ${c.estado === 'pendiente' && c.metodo_pago === 'efectivo' && c.reservado_hasta ? `<div class="ayuda" style="margin-top:8px">Pagale en efectivo a ${esc(config.organizador)} antes del ${new Date(c.reservado_hasta).toLocaleString('es-AR', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })}, mencionando el código ${esc(c.codigo)}.</div>` : ''}
           ${['rechazada', 'excepcion'].includes(c.estado) && c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
           ${c.estado === 'reservada' && reserva && reserva.id === c.id ? '<button class="btn chico" style="margin-top:10px" data-pagar>Completar pago</button>' : ''}
         </div>`).join('');

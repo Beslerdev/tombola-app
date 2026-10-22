@@ -38,9 +38,9 @@ language sql stable set search_path = public as $$
     'en_prueba', o.trial_hasta is not null and now() < o.trial_hasta and (o.pagado_hasta is null or o.pagado_hasta <= o.trial_hasta),
     'activa', org_activa(o.id), 'bloqueado', o.bloqueado,
     'acepta_transferencia', o.acepta_transferencia, 'alias', o.alias, 'titular', o.titular,
+    'acepta_efectivo', o.acepta_efectivo, 'efectivo_horas', o.efectivo_horas,
     'mp_conectado', o.mp_tokens is not null, 'mp_user_id', o.mp_user_id, 'mp_conectado_at', o.mp_conectado_at, 'created_at', o.created_at)
 $$;
-
 -- ---------------------------------------------------------------------
 -- Lógica de reservas y pagos
 -- ---------------------------------------------------------------------
@@ -48,10 +48,12 @@ $$;
 create or replace function public.liberar_vencidas() returns void
 language plpgsql set search_path = public as $$
 begin
-  update compras set estado = 'vencida', updated_at = now() where estado = 'reservada' and reservado_hasta < now();
-  update casilleros set estado = 'libre', compra_id = null, reservado_hasta = null where estado = 'reservado' and reservado_hasta < now();
+  -- Reservas sin pagar y reservas "pago en efectivo" cuyo plazo venció sin que el organizador lo apruebe
+  update compras set estado = 'vencida', updated_at = now()
+   where reservado_hasta < now() and (estado = 'reservada' or (estado = 'pendiente' and metodo_pago = 'efectivo'));
+  update casilleros set estado = 'libre', compra_id = null, reservado_hasta = null
+   where estado in ('reservado', 'pendiente') and reservado_hasta < now();
 end $$;
-
 -- Reserva números (atómica: bloquea las filas para que dos personas no tomen el mismo número)
 create or replace function public.reservar_t(p_tombola uuid, p_numeros integer[], p_nombre text, p_celular text) returns json
 language plpgsql set search_path = public as $$
@@ -205,6 +207,7 @@ begin
     acepta_transferencia = coalesce((j->>'acepta_transferencia')::boolean, acepta_transferencia),
     alias = case when j ? 'alias' then nullif(j->>'alias', '') else alias end,
     titular = case when j ? 'titular' then nullif(j->>'titular', '') else titular end,
+    acepta_efectivo = coalesce((j->>'acepta_efectivo')::boolean, acepta_efectivo),
     pass_hash = coalesce(j->>'pass_hash', pass_hash),
     mp_tokens = case when j ? 'mp_tokens' then j->>'mp_tokens' else mp_tokens end,
     mp_user_id = case when j ? 'mp_user_id' then j->>'mp_user_id' else mp_user_id end,
@@ -213,7 +216,6 @@ begin
   where id = p_org returning * into o;
   return org_json(o);
 end $$;
-
 create or replace function public.api_org_por_mp_user(p_key text, p_mp_user text) returns uuid
 language plpgsql security definer set search_path = public as $$
 begin perform _chk(p_key); return (select id from organizadores where mp_user_id = p_mp_user limit 1); end $$;
@@ -338,14 +340,15 @@ begin
        'detalle_ganador', t.detalle_ganador, 'ganador_nombre', v_ganador, 'estado', t.estado),
     'organizador', json_build_object('id', o.id, 'nombre', o.nombre,
        'alias', case when o.acepta_transferencia then o.alias end,
-       'titular', case when o.acepta_transferencia then o.titular end),
-    'medios', json_build_object('mp', o.mp_tokens is not null, 'transferencia', o.acepta_transferencia and o.alias is not null),
+       'titular', case when o.acepta_transferencia then o.titular end,
+       'efectivo_horas', o.efectivo_horas),
+    'medios', json_build_object('mp', o.mp_tokens is not null, 'transferencia', o.acepta_transferencia and o.alias is not null,
+       'efectivo', o.acepta_efectivo),
     'activa', org_activa(o.id) and t.estado = 'activa',
     'suspendida', not org_activa(o.id),
     'numeros', (select json_agg(json_build_object('n', n, 'e', estado, 'h', reservado_hasta) order by n) from casilleros where tombola_id = t.id),
     'ahora', now());
 end $$;
-
 -- =====================================================================
 -- API: compras (comprador)
 -- =====================================================================
@@ -359,10 +362,9 @@ begin
   perform _chk(p_key);
   perform liberar_vencidas();
   return coalesce((select json_agg(row_to_json(x) order by x.created_at desc) from (
-    select id, codigo, nombre, numeros, estado, nota_admin, reservado_hasta, monto, created_at
+    select id, codigo, nombre, numeros, estado, nota_admin, reservado_hasta, monto, metodo_pago, created_at
       from compras where tombola_id = p_tombola and celular = p_celular and estado <> 'cancelada') x), '[]'::json);
 end $$;
-
 create or replace function public.api_compra(p_key text, p_compra uuid) returns json
 language plpgsql security definer set search_path = public as $$
 begin
@@ -404,6 +406,32 @@ begin
   values (p_payment_id, (select id from compras where id = p_compra), p_monto, p_estado, p_metodo)
   on conflict (payment_id) do update set estado_mp = excluded.estado_mp, updated_at = now()
   where pagos.resultado is null;
+end $$;
+
+-- El comprador elige pagar en efectivo: la compra queda "por verificar" hasta que el organizador
+-- apruebe el pago, con un plazo (efectivo_horas) tras el cual se libera sola.
+create or replace function public.elegir_efectivo(p_compra uuid) returns json
+language plpgsql set search_path = public as $$
+declare v compras; v_org organizadores; v_hasta timestamptz;
+begin
+  select * into v from compras where id = p_compra for update;
+  if not found then raise exception 'NO_EXISTE'; end if;
+  if v.estado <> 'reservada' then raise exception 'ESTADO_INVALIDO:%', v.estado; end if;
+  if v.reservado_hasta + interval '1 minute' < now() then raise exception 'VENCIDA'; end if;
+  select o.* into v_org from organizadores o join tombolas t on t.organizador_id = o.id where t.id = v.tombola_id;
+  if not v_org.acepta_efectivo then raise exception 'SIN_EFECTIVO'; end if;
+  v_hasta := now() + make_interval(hours => v_org.efectivo_horas);
+  update compras set estado = 'pendiente', metodo_pago = 'efectivo', reservado_hasta = v_hasta, updated_at = now() where id = p_compra;
+  update casilleros set estado = 'pendiente', reservado_hasta = v_hasta where compra_id = p_compra;
+  return json_build_object('hasta', v_hasta);
+end $$;
+
+create or replace function public.api_efectivo(p_key text, p_compra uuid, p_celular text) returns json
+language plpgsql security definer set search_path = public as $$
+begin
+  perform _chk(p_key);
+  if not exists (select 1 from compras where id = p_compra and celular = p_celular) then raise exception 'NO_EXISTE'; end if;
+  return elegir_efectivo(p_compra);
 end $$;
 
 -- =====================================================================
@@ -499,7 +527,7 @@ grant execute on function
   public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json),
   public.api_tombolas_de_org(text, uuid), public.api_tombola_get(text, uuid), public.api_tombola_publica(text, text),
   public.api_reservar(text, uuid, int[], text, text), public.api_mis_compras(text, uuid, text), public.api_compra(text, uuid),
-  public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text),
+  public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text), public.api_efectivo(text, uuid, text),
   public.api_admin_compras(text, uuid), public.api_admin_numeros(text, uuid), public.api_admin_ver_comprobante(text, uuid),
   public.api_admin_aprobar(text, uuid), public.api_admin_rechazar(text, uuid, text), public.api_admin_marcar_devuelta(text, uuid), public.api_admin_devolver(text, uuid, text, text),
   public.api_registrar_pago(text, uuid, text, numeric, text), public.api_registrar_evento_pago(text, text, uuid, numeric, text, text),

@@ -25,6 +25,8 @@ create table public.organizadores (
   acepta_transferencia boolean not null default true,
   alias text,
   titular text,
+  acepta_efectivo boolean not null default false,
+  efectivo_horas integer not null default 48,       -- plazo para pagar en efectivo antes de que se libere
   mp_user_id text,                                  -- id de la cuenta de Mercado Pago conectada
   mp_tokens text,                                   -- credenciales de Mercado Pago CIFRADAS por el servidor
   mp_conectado_at timestamptz,

@@ -50,6 +50,7 @@ const MENSAJES = {
   EMAIL_EXISTE: 'Ya hay una cuenta con ese email. Ingresá con tu contraseña.',
   SUSPENDIDA: 'Esta tómbola está suspendida momentáneamente. Probá más tarde.',
   TOMBOLA_CERRADA: 'Esta tómbola ya no acepta compras.',
+  SIN_EFECTIVO: 'Esta tómbola no acepta pago en efectivo.',
 };
 function enviarError(res, e) {
   const msg = e.message || 'Error';
@@ -249,6 +250,7 @@ app.post('/api/panel/perfil', soloOrg, wrap(async (req, res) => {
   if (b.alias !== undefined) p.alias = String(b.alias || '').trim().slice(0, 60);
   if (b.titular !== undefined) p.titular = String(b.titular || '').trim().slice(0, 100);
   if (b.acepta_transferencia !== undefined) p.acepta_transferencia = Boolean(b.acepta_transferencia);
+  if (b.acepta_efectivo !== undefined) p.acepta_efectivo = Boolean(b.acepta_efectivo);
   if (b.password) {
     if (String(b.password).length < 8) throw errorPublico(400, 'La contraseña debe tener al menos 8 caracteres');
     p.pass_hash = hashPass(String(b.password));
@@ -444,7 +446,7 @@ app.get('/api/t/:slug', wrap(async (req, res) => {
 
 app.post('/api/t/:slug/reservar', wrap(async (req, res) => {
   const d = await publica(req.params.slug);
-  if (!d.medios.mp && !d.medios.transferencia) throw errorPublico(400, 'El organizador todavía no configuró cómo cobrar. Probá más tarde.');
+  if (!d.medios.mp && !d.medios.transferencia && !d.medios.efectivo) throw errorPublico(400, 'El organizador todavía no configuró cómo cobrar. Probá más tarde.');
   const { numeros, nombre } = req.body || {};
   const celular = normCelular(req.body && req.body.celular);
   if (!Array.isArray(numeros) || !numeros.length || numeros.length > 100 || !numeros.every((n) => Number.isInteger(n) && n >= 0 && n <= 99)) throw errorPublico(400, 'Números inválidos');
@@ -472,6 +474,14 @@ app.post('/api/comprobante', wrap(async (req, res) => {
   if (b64.length > 13_500_000) throw errorPublico(400, 'El archivo es demasiado grande (máx. 10 MB)');
   await rpc('api_comprobante', { p_compra: compraId, p_celular: celular, p_mime: mime, p_nombre: String(nombreArchivo || 'comprobante').slice(0, 120), p_data_b64: b64 });
   res.json({ ok: true });
+}));
+
+// El comprador elige pagar en efectivo: queda "por verificar" hasta que el organizador apruebe (o venza el plazo)
+app.post('/api/efectivo', wrap(async (req, res) => {
+  const { compraId } = req.body || {};
+  if (!UUID.test(compraId || '')) throw errorPublico(400, 'Reserva inválida');
+  const r = await rpc('api_efectivo', { p_compra: compraId, p_celular: normCelular(req.body && req.body.celular) });
+  res.json({ ok: true, hasta: r.hasta });
 }));
 
 app.post('/api/cancelar', wrap(async (req, res) => {

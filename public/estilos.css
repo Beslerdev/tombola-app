@@ -165,6 +165,9 @@ main { max-width: 720px; margin: 0 auto; padding: 16px 16px 120px; }
 .velo.dialogo .modal { border-radius: 18px; max-width: 400px; }
 .velo.dialogo .botones { display: flex; gap: 8px; margin-top: 16px; }
 .velo.dialogo .botones .btn { flex: 1; }
+.metodos { display: flex; gap: 6px; margin: 4px 0 14px; }
+.metodos button { flex: 1; border: 1.5px solid var(--borde); background: #fff; border-radius: 10px; padding: 10px 6px; font-weight: 700; font-size: 13.5px; color: var(--tinta); }
+.metodos button.activo { border-color: var(--tinta); background: var(--tinta); color: #fff; }
 .btn.mp { background: #009ee3; font-size: 16px; padding: 14px 18px; }
 .btn.mp:hover { background: #0084c0; }
 .estado.excepcion { background: var(--err-bg); color: var(--err); }

@@ -98,6 +98,11 @@
         <div data-msg></div>
         <button class="btn oscuro" type="submit">Guardar</button>
       </form>
+      <div class="medio">
+        <h3>💵 Pago en efectivo <span id="ef-chip"></span></h3>
+        <p>El comprador reserva y elige "Efectivo". Sus números quedan apartados 48 horas: cuando te paga en mano, aprobás el pago desde la tómbola. Si no lo aprobás en ese plazo, se liberan solos.</p>
+        <label class="check" style="margin:0"><input type="checkbox" id="ef-acepta"> Aceptar pagos en efectivo</label>
+      </div>
     </div>
   </section>
 
@@ -195,7 +200,7 @@
 
     // Avisos
     let av = '';
-    const cobra = org.mp_conectado || (org.acepta_transferencia && org.alias);
+    const cobra = org.mp_conectado || (org.acepta_transferencia && org.alias) || org.acepta_efectivo;
     if (!org.es_dueno && !org.vence) av += `<div class="aviso info"><b>Tus tómbolas todavía no venden.</b> Conectá tu Mercado Pago para activar los 7 días de prueba gratis, o suscribite directamente. <a href="#cobros" data-ir="cobros">Ir a Cobros</a></div>`;
     else if (!org.es_dueno && !org.activa) av += `<div class="aviso error"><b>Tus tómbolas están suspendidas.</b> Renová la suscripción para que vuelvan a vender.</div>`;
     if (!org.es_dueno && org.activa && diasRestantes(org.vence) <= 3) av += `<div class="aviso info"><b>Te quedan ${diasRestantes(org.vence)} días.</b> Renová para que tus tómbolas sigan vendiendo sin cortes.</div>`;
@@ -237,6 +242,8 @@
         : '<p style="margin:0;font-size:13.5px"><b>Disponible muy pronto.</b> Mientras tanto podés cobrar por transferencia.</p>';
     const on = $('#mp-on'); if (on) on.addEventListener('click', conectarMp);
     const off = $('#mp-off'); if (off) off.addEventListener('click', desconectarMp);
+    $('#ef-chip').innerHTML = org.acepta_efectivo ? '<span class="ok-chip">Activo</span>' : '<span class="no-chip">Inactivo</span>';
+    $('#ef-acepta').checked = !!org.acepta_efectivo;
     $('#tr-chip').innerHTML = org.acepta_transferencia && org.alias ? '<span class="ok-chip">Activo</span>' : '<span class="no-chip">Inactivo</span>';
     if (!document.activeElement || !document.activeElement.closest('#f-transf')) {
       $('#tr-acepta').checked = org.acepta_transferencia; $('#tr-alias').value = org.alias || ''; $('#tr-titular').value = org.titular || '';
@@ -269,6 +276,13 @@
       await api('/api/panel/perfil', { method: 'POST', body: JSON.stringify({ acepta_transferencia: $('#tr-acepta').checked, alias: $('#tr-alias').value, titular: $('#tr-titular').value }) });
       msg(f, 'ok', 'Guardado.'); setTimeout(() => msg(f), 2500); document.activeElement.blur(); cargar();
     } catch (err) { msg(f, 'error', esc(err.message)); }
+  });
+  $('#ef-acepta').addEventListener('change', async (e) => {
+    const on = e.target.checked;
+    try {
+      await api('/api/panel/perfil', { method: 'POST', body: JSON.stringify({ acepta_efectivo: on }) });
+      toast(on ? 'Pago en efectivo activado' : 'Pago en efectivo desactivado'); cargar();
+    } catch (err) { toast(err.message); e.target.checked = !on; }
   });
   $('#f-cuenta').addEventListener('submit', async (e) => {
     e.preventDefault();
