@@ -166,6 +166,22 @@ describe('Organizador', () => {
     await p.context().close();
   });
 
+  test('"Cerrar sesión" de arriba se ve en celular y PC, y saca de la cuenta', async () => {
+    for (const ancho of [360, 1280]) {
+      const p = await pagina({ ancho, sesion: org.token });
+      await p.goto(e.url + '/panel');
+      await p.waitForSelector('#h-nombre:not(:empty)');
+      await p.screenshot({ path: `/tmp/claude-0/-home-claude/38a02f93-a3a5-5609-a45d-45541a1a112f/scratchpad/salir-${ancho}.png` });
+      assert.equal(await p.isVisible('#salir-arriba'), true);
+      await p.click('#salir-arriba');
+      await p.waitForURL(/\/ingresar/);
+      assert.equal(await p.evaluate(() => localStorage.getItem('tt_sesion')), null);
+      await p.goto(e.url + '/panel');
+      await p.waitForURL(/\/ingresar/);
+      await p.context().close();
+    }
+  });
+
   test('crea una tómbola desde el panel y el link público funciona', async () => {
     const p = await pagina({ sesion: org.token });
     await p.goto(e.url + '/panel');

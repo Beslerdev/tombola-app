@@ -13,6 +13,9 @@
   .marca { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 20px; color: #fff; text-decoration: none; }
   .marca span { color: var(--oro); }
   .top a.chico { color: #d7deea; font-size: 13px; text-decoration: none; }
+  .acciones-top { display: flex; align-items: center; gap: 16px; }
+  .top button.chico { background: none; border: 1px solid rgba(255,255,255,.3); color: #fff; font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; cursor: pointer; }
+  .top button.chico:hover { background: rgba(255,255,255,.1); }
   .plan { margin-top: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 14px; padding: 12px 14px; }
   .plan .dias { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 800; font-size: 34px; line-height: 1; color: var(--oro); min-width: 52px; text-align: center; }
   .plan .dias.alerta { color: #ff8a73; }
@@ -49,7 +52,10 @@
   <div class="envoltura">
     <div class="top">
       <a class="marca" href="/">Tu<span>tombola!</span></a>
-      <a class="chico oculto" id="link-dueno" href="/dueno">Panel del dueño →</a>
+      <span class="acciones-top">
+        <a class="chico oculto" id="link-dueno" href="/dueno">Panel del dueño →</a>
+        <button class="chico" type="button" id="salir-arriba">Cerrar sesión</button>
+      </span>
     </div>
     <h1 id="h-nombre" style="font-size:clamp(24px,5vw,32px)">Mi panel</h1>
     <div class="plan" id="plan"></div>
@@ -295,6 +301,7 @@
     } catch (err) { msg(f, 'error', esc(err.message)); }
   });
   $('#salir').addEventListener('click', salir);
+  $('#salir-arriba').addEventListener('click', salir);
 
   $('#nueva').addEventListener('click', () => { msg($('#f-nueva')); $('#m-nueva').classList.remove('oculto'); setTimeout(() => $('#n-nombre').focus(), 50); });
   document.querySelectorAll('[data-cerrar]').forEach((b) => b.addEventListener('click', () => b.closest('.velo').classList.add('oculto')));
