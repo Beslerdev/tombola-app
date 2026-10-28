@@ -1,4 +1,4 @@
-# Base de datos de Tutombola!
+# Base de datos de Tutómbola!
 
 Copia de **referencia** de la estructura de la base (Supabase, proyecto `tombola`). Sirve para entender cómo está armada o para recrearla en un proyecto nuevo.
 
@@ -29,5 +29,5 @@ Copia de **referencia** de la estructura de la base (Supabase, proyecto `tombola
 - **compras**: reservas y compras de los participantes.
 - **comprobantes**: archivos de transferencias (privados).
 - **pagos**: pagos de Mercado Pago ya procesados.
-- **pagos_suscripcion**: pagos de los organizadores a Tutombola!.
+- **pagos_suscripcion**: pagos de los organizadores a Tutómbola!.
 - **app_secret**: hash de la clave del servidor.

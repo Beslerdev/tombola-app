@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#16233b">
-<title>Ingresar · Tutombola!</title>
+<title>Ingresar · Tutómbola!</title>
 <link rel="icon" href="/icono.svg">
 <link rel="stylesheet" href="/estilos.css">
 <style>
@@ -17,7 +17,7 @@
 </head>
 <body>
 <main>
-  <a class="marca" href="/">Tu<span>tombola!</span></a>
+  <a class="marca" href="/">Tu<span>tómbola!</span></a>
   <div class="caja">
     <div class="pestanas" role="tablist">
       <button role="tab" data-tab="ingresar">Ingresar</button>
@@ -59,7 +59,7 @@
     document.querySelectorAll('[data-tab]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
     $('#f-ingresar').classList.toggle('oculto', t !== 'ingresar');
     $('#f-registro').classList.toggle('oculto', t !== 'registro');
-    document.title = (t === 'registro' ? 'Crear cuenta' : 'Ingresar') + ' · Tutombola!';
+    document.title = (t === 'registro' ? 'Crear cuenta' : 'Ingresar') + ' · Tutómbola!';
     history.replaceState(null, '', '/' + t + location.search);
   }
   document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => tab(b.dataset.tab)));

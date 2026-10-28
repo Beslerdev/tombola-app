@@ -1,4 +1,4 @@
-// Entorno de pruebas aislado para Tutombola!
+// Entorno de pruebas aislado para Tutómbola!
 // - Postgres temporal con el esquema real (base-de-datos/*.sql)
 // - Simulador de Supabase (PostgREST /rest/v1/rpc/*) que ejecuta como rol "anon"
 // - Simulador de la API de Mercado Pago (preferencias, pagos, OAuth)

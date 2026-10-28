@@ -1,5 +1,5 @@
 -- =====================================================================
--- Tutombola! — Tablas (Supabase / PostgreSQL)
+-- Tutómbola! — Tablas (Supabase / PostgreSQL)
 -- Copia de referencia de la estructura actual. NO contiene datos ni claves.
 -- Todas las tablas tienen RLS activado y sin políticas: no se pueden leer
 -- ni escribir directamente; el acceso es solo mediante las funciones api_*
@@ -12,7 +12,7 @@ create table public.app_secret (
   hash text not null
 );
 
--- Organizadores (clientes de Tutombola!) y el dueño de la plataforma
+-- Organizadores (clientes de Tutómbola!) y el dueño de la plataforma
 create table public.organizadores (
   id uuid primary key default gen_random_uuid(),
   email text not null unique,
@@ -117,7 +117,7 @@ create table public.pagos (
   updated_at timestamptz not null default now()
 );
 
--- Pagos de suscripción a Tutombola!
+-- Pagos de suscripción a Tutómbola!
 create table public.pagos_suscripcion (
   payment_id text primary key,
   organizador_id uuid not null references public.organizadores(id),

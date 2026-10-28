@@ -1,5 +1,5 @@
 -- =====================================================================
--- Tutombola! — Funciones de la base (Supabase / PostgreSQL)
+-- Tutómbola! — Funciones de la base (Supabase / PostgreSQL)
 -- Copia de referencia de las funciones en uso. NO contiene datos ni claves.
 --
 -- * Funciones internas (sin prefijo api_): contienen la lógica.

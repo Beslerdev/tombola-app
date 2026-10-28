@@ -1,4 +1,4 @@
-# Tutombola! — Resumen del proyecto
+# Tutómbola! — Resumen del proyecto
 
 *Actualizado: 10/10/2026*
 
@@ -13,7 +13,7 @@ Plataforma web para que cualquier organizador cree y venda **tómbolas de númer
 | **1. Tómbola única** | Grilla 00–99, reserva con tiempo límite, pago por transferencia y comprobante, panel de administración con contraseña, aviso de tómbola completa y carga del ganador (Lotería Nacional). |
 | **2. Pago automático** | Integración con **Mercado Pago Checkout Pro**: el comprador paga en la pantalla oficial de Mercado Pago y el número se confirma solo. |
 | **3. Correcciones** | Ventanas de confirmación propias (el navegador de WhatsApp/Instagram bloqueaba las nativas); liberación automática del número si el comprador vuelve de Mercado Pago sin pagar. |
-| **4. Plataforma Tutombola!** | Varios organizadores, cada uno con su cuenta, sus tómbolas y su forma de cobro. Suscripción mensual, prueba gratis y panel del dueño. |
+| **4. Plataforma Tutómbola!** | Varios organizadores, cada uno con su cuenta, sus tómbolas y su forma de cobro. Suscripción mensual, prueba gratis y panel del dueño. |
 | **5. Prueba gratis antiabuso** | 7 días que empiezan al conectar Mercado Pago, **una sola vez por cuenta de Mercado Pago**. |
 | **6. Ganador** | El cartel del ganador muestra el nombre de quien compró el número. |
 
@@ -50,7 +50,7 @@ Plataforma web para que cualquier organizador cree y venda **tómbolas de númer
 
 **Colores de la grilla:** blanco = libre · rojo = su elección · amarillo rayado = reservado · gris rayado = en verificación · azul oscuro tachado = vendido · dorado = ganador.
 
-### Para el organizador (cliente de Tutombola!)
+### Para el organizador (cliente de Tutómbola!)
 1. Se registra con email y contraseña y acepta los términos.
 2. En **Cobros** elige cómo cobrar:
    - **Conectar con Mercado Pago**: entra con *su* cuenta y autoriza. La plata va **directo a su cuenta**.
@@ -76,7 +76,7 @@ Plataforma web para que cualquier organizador cree y venda **tómbolas de númer
 | Límite de prueba | **Una prueba por cuenta de Mercado Pago**, aunque se registren varios emails |
 | Sin Mercado Pago | Quien cobra solo por transferencia no tiene prueba: se suscribe directamente |
 | Si no renueva | Las tómbolas se **suspenden**: no aceptan compras nuevas, los números vendidos se respetan, y al renovar se reactivan |
-| Dinero de las tómbolas | Va **directo** al organizador. Tutombola! no recibe ni administra esos fondos |
+| Dinero de las tómbolas | Va **directo** al organizador. Tutómbola! no recibe ni administra esos fondos |
 
 ---
 

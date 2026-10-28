@@ -1,5 +1,5 @@
 'use strict';
-// Tutombola! — plataforma de tómbolas 00-99 para organizadores
+// Tutómbola! — plataforma de tómbolas 00-99 para organizadores
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
@@ -7,7 +7,7 @@ const path = require('path');
 const env = process.env;
 const {
   SUPABASE_URL, SUPABASE_ANON_KEY, DB_API_KEY, TOKEN_SECRET, ENC_KEY,
-  MP_ACCESS_TOKEN,          // cuenta de Tutombola! (cobro de suscripciones)
+  MP_ACCESS_TOKEN,          // cuenta de Tutómbola! (cobro de suscripciones)
   MP_CLIENT_ID, MP_CLIENT_SECRET, // aplicación de Mercado Pago para "Conectar con Mercado Pago"
   PORT = 3000,
 } = env;
@@ -123,7 +123,7 @@ async function soloOrg(req, res, next) {
   if (!id) return res.status(401).json({ error: 'Tu sesión venció. Ingresá de nuevo.' });
   try {
     const org = await rpc('api_org_get', { p_org: id });
-    if (!org || org.bloqueado) return res.status(401).json({ error: 'Cuenta no disponible. Contactá a Tutombola!.' });
+    if (!org || org.bloqueado) return res.status(401).json({ error: 'Cuenta no disponible. Contactá a Tutómbola!.' });
     req.org = org; next();
   } catch (e) { enviarError(res, e); }
 }
@@ -194,7 +194,7 @@ async function procesarPago(orgId, paymentId) {
   return { estado: p.status, compra };
 }
 
-// Procesa un pago de suscripción (cuenta de Tutombola!)
+// Procesa un pago de suscripción (cuenta de Tutómbola!)
 async function procesarSuscripcion(paymentId) {
   const p = await mp(MP_ACCESS_TOKEN, `/v1/payments/${encodeURIComponent(paymentId)}`);
   const ref = String(p.external_reference || '');
@@ -228,7 +228,7 @@ app.post('/api/login', wrap(async (req, res) => {
   const { email, password } = req.body || {};
   const u = await rpc('api_org_login', { p_email: String(email || '').trim() });
   if (!u || !verificarPass(String(password || ''), u.pass_hash)) throw errorPublico(401, 'Email o contraseña incorrectos');
-  if (u.bloqueado) throw errorPublico(403, 'Tu cuenta está bloqueada. Contactá a Tutombola!.');
+  if (u.bloqueado) throw errorPublico(403, 'Tu cuenta está bloqueada. Contactá a Tutómbola!.');
   res.json({ token: crearSesion(u.id) });
 }));
 
@@ -355,7 +355,7 @@ app.post('/api/panel/compras/:id/devuelta', soloOrg, wrap(async (req, res) => {
 
 // ---------- Conectar Mercado Pago (OAuth) ----------
 app.post('/api/panel/mp/conectar', soloOrg, wrap(async (req, res) => {
-  if (!oauthDisponible()) throw errorPublico(503, 'La conexión con Mercado Pago todavía no está habilitada en Tutombola!.');
+  if (!oauthDisponible()) throw errorPublico(503, 'La conexión con Mercado Pago todavía no está habilitada en Tutómbola!.');
   const state = crearFirmado('oauth', req.org.id, 15 * 60_000);
   const u = new URL(`${MP_AUTH}/authorization`);
   u.searchParams.set('client_id', MP_CLIENT_ID);
@@ -390,11 +390,11 @@ app.post('/api/panel/mp/desconectar', soloOrg, wrap(async (req, res) => {
 
 // ---------- Suscripción ----------
 app.post('/api/panel/suscripcion', soloOrg, wrap(async (req, res) => {
-  if (!suscripcionDisponible()) throw errorPublico(503, 'El pago de la suscripción todavía no está habilitado. Contactá a Tutombola!.');
+  if (!suscripcionDisponible()) throw errorPublico(503, 'El pago de la suscripción todavía no está habilitado. Contactá a Tutómbola!.');
   const pref = await mp(MP_ACCESS_TOKEN, '/checkout/preferences', {
     method: 'POST',
     body: JSON.stringify({
-      items: [{ id: 'suscripcion', title: `Tutombola! – Suscripción ${DIAS_SUSCRIPCION} días`, quantity: 1, unit_price: PRECIO_SUSCRIPCION, currency_id: 'ARS' }],
+      items: [{ id: 'suscripcion', title: `Tutómbola! – Suscripción ${DIAS_SUSCRIPCION} días`, quantity: 1, unit_price: PRECIO_SUSCRIPCION, currency_id: 'ARS' }],
       payer: { email: req.org.email, name: req.org.nombre },
       external_reference: `sub:${req.org.id}`,
       notification_url: `${PUBLIC_URL}/api/mp/webhook-sub`,
@@ -637,4 +637,4 @@ app.get('/admin', (req, res) => res.redirect('/panel'));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 app.use((req, res) => res.status(404).sendFile(pub('inicio.html')));
 
-app.listen(PORT, () => console.log(`Tutombola! escuchando en :${PORT}`));
+app.listen(PORT, () => console.log(`Tutómbola! escuchando en :${PORT}`));

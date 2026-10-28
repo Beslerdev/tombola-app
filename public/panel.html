@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#16233b">
 <meta name="robots" content="noindex">
-<title>Mi panel · Tutombola!</title>
+<title>Mi panel · Tutómbola!</title>
 <link rel="icon" href="/icono.svg">
 <link rel="stylesheet" href="/estilos.css">
 <style>
@@ -51,7 +51,7 @@
 <header class="cabecera">
   <div class="envoltura">
     <div class="top">
-      <a class="marca" href="/">Tu<span>tombola!</span></a>
+      <a class="marca" href="/">Tu<span>tómbola!</span></a>
       <span class="acciones-top">
         <a class="chico oculto" id="link-dueno" href="/dueno">Panel del dueño →</a>
         <button class="chico" type="button" id="salir-arriba">Cerrar sesión</button>
@@ -89,7 +89,7 @@
 
   <section id="tab-cobros" class="oculto">
     <div class="tarjeta">
-      <p style="margin:0 0 14px;font-size:14.5px">Elegí cómo te pagan los compradores. La plata va <b>directo a tu cuenta</b>: Tutombola! no toca tu dinero.</p>
+      <p style="margin:0 0 14px;font-size:14.5px">Elegí cómo te pagan los compradores. La plata va <b>directo a tu cuenta</b>: Tutómbola! no toca tu dinero.</p>
       <div class="medio">
         <h3>💳 Mercado Pago <span id="mp-chip"></span></h3>
         <p>Los compradores pagan con dinero en cuenta, débito o crédito. El pago se confirma solo y los números quedan tachados al instante.</p>
@@ -244,7 +244,7 @@
     $('#mp-acciones').innerHTML = org.mp_conectado
       ? `<p style="margin:0 0 10px;color:var(--ok);font-size:14px">Cuenta de Mercado Pago conectada${org.mp_conectado_at ? ' el ' + new Date(org.mp_conectado_at).toLocaleDateString('es-AR') : ''}.</p><button class="btn secundario chico" id="mp-off" type="button">Desconectar</button>`
       : datos.oauthDisponible
-        ? `<button class="btn mp" id="mp-on" type="button">Conectar con Mercado Pago</button><p style="margin:8px 0 0;font-size:12.5px">Vas a ingresar con tu cuenta de Mercado Pago y autorizar a Tutombola! a crear cobros a tu nombre.${org.prueba_disponible ? ' <b>Al conectarla empiezan tus 7 días de prueba gratis</b> (una prueba por cuenta de Mercado Pago).' : ''}</p>`
+        ? `<button class="btn mp" id="mp-on" type="button">Conectar con Mercado Pago</button><p style="margin:8px 0 0;font-size:12.5px">Vas a ingresar con tu cuenta de Mercado Pago y autorizar a Tutómbola! a crear cobros a tu nombre.${org.prueba_disponible ? ' <b>Al conectarla empiezan tus 7 días de prueba gratis</b> (una prueba por cuenta de Mercado Pago).' : ''}</p>`
         : '<p style="margin:0;font-size:13.5px"><b>Disponible muy pronto.</b> Mientras tanto podés cobrar por transferencia.</p>';
     const on = $('#mp-on'); if (on) on.addEventListener('click', conectarMp);
     const off = $('#mp-off'); if (off) off.addEventListener('click', desconectarMp);
@@ -324,11 +324,11 @@
       const pr = q.get('prueba');
       if (pr === 'otorgada') toast('¡Mercado Pago conectado! Empezaron tus 7 días de prueba gratis.');
       else if (pr === 'usada') {
-        await preguntar({ titulo: 'Mercado Pago conectado', texto: 'Esa cuenta de Mercado Pago ya usó la prueba gratis en otra cuenta de Tutombola!, así que no se puede repetir.\n\nPara que tus tómbolas empiecen a vender, suscribite.', si: 'Entendido', no: 'Cerrar' });
+        await preguntar({ titulo: 'Mercado Pago conectado', texto: 'Esa cuenta de Mercado Pago ya usó la prueba gratis en otra cuenta de Tutómbola!, así que no se puede repetir.\n\nPara que tus tómbolas empiecen a vender, suscribite.', si: 'Entendido', no: 'Cerrar' });
       } else toast('¡Mercado Pago conectado!');
     }
     if (q.get('mp') === 'error') { irTab('cobros'); toast('No se pudo conectar Mercado Pago. Probá de nuevo.'); }
-    if (q.get('bienvenida')) toast('¡Bienvenido a Tutombola! Conectá tu Mercado Pago para empezar tus 7 días gratis.');
+    if (q.get('bienvenida')) toast('¡Bienvenido a Tutómbola! Conectá tu Mercado Pago para empezar tus 7 días gratis.');
     if (q.get('sub')) {
       const pid = q.get('payment_id') || q.get('collection_id');
       if (q.get('sub') === 'ok' && pid) {
