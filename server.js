@@ -46,6 +46,7 @@ const MENSAJES = {
   VENCIDA: 'La reserva venció. Elegí los números nuevamente.',
   NO_EXISTE: 'No encontramos lo que buscabas',
   ESTADO_INVALIDO: 'La compra ya no está en un estado que permita esta acción',
+  TIENE_VENTAS: 'Esta tómbola ya tiene ventas, reservas o pagos, así que no se puede eliminar. Podés archivarla.',
   SIN_NUMEROS: 'Elegí al menos un número',
   EMAIL_EXISTE: 'Ya hay una cuenta con ese email. Ingresá con tu contraseña.',
   SUSPENDIDA: 'Esta tómbola está suspendida momentáneamente. Probá más tarde.',
@@ -271,6 +272,7 @@ function datosTombola(b, nueva) {
     if (b.numero_ganador === null || b.numero_ganador === '') t.numero_ganador = null;
     else { const g = parseInt(b.numero_ganador, 10); if (!(g >= 0 && g <= 99)) throw errorPublico(400, 'El número ganador debe estar entre 00 y 99'); t.numero_ganador = g; }
   }
+  if (b.archivada !== undefined) t.archivada = b.archivada === true;
   if ('detalle_ganador' in b) t.detalle_ganador = b.detalle_ganador ? String(b.detalle_ganador).slice(0, 300) : null;
   return t;
 }
@@ -295,9 +297,19 @@ async function compraPropia(req) {
 }
 
 app.post('/api/panel/tombolas/:id', soloOrg, wrap(async (req, res) => {
-  await tombolaPropia(req);
-  const r = await rpc('api_tombola_update', { p_org: req.org.id, p_tombola: req.params.id, p: datosTombola(req.body || {}, false) });
+  const actual = await tombolaPropia(req);
+  const datos = datosTombola(req.body || {}, false);
+  // Al archivar una tómbola que todavía vende, se finaliza la venta
+  if (datos.archivada === true && actual.estado === 'activa' && datos.estado === undefined) datos.estado = 'finalizada';
+  const r = await rpc('api_tombola_update', { p_org: req.org.id, p_tombola: req.params.id, p: datos });
   res.json({ tombola: r });
+}));
+
+// Eliminar: solo tómbolas sin ventas, reservas ni pagos (la base de datos lo vuelve a controlar)
+app.post('/api/panel/tombolas/:id/eliminar', soloOrg, wrap(async (req, res) => {
+  await tombolaPropia(req);
+  await rpc('api_tombola_eliminar', { p_org: req.org.id, p_tombola: req.params.id });
+  res.json({ ok: true });
 }));
 
 app.get('/api/panel/tombolas/:id', soloOrg, wrap(async (req, res) => {
@@ -306,7 +318,8 @@ app.get('/api/panel/tombolas/:id', soloOrg, wrap(async (req, res) => {
   const [compras, numeros] = await Promise.all([
     rpc('api_admin_compras', { p_tombola: t.id }), rpc('api_admin_numeros', { p_tombola: t.id }),
   ]);
-  res.json({ tombola: t, compras, numeros, org: req.org, ahora: new Date().toISOString() });
+  const eliminable = compras.every((c) => ['vencida', 'rechazada'].includes(c.estado) && !c.mp_payment_id);
+  res.json({ tombola: t, compras, numeros, eliminable, org: req.org, ahora: new Date().toISOString() });
 }));
 
 app.get('/api/panel/comprobante/:id', soloOrg, wrap(async (req, res) => {

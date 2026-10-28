@@ -161,6 +161,11 @@ main { max-width: 720px; margin: 0 auto; padding: 16px 16px 120px; }
 .btn.oscuro:hover { background: var(--tinta-2); }
 .btn.verde { background: var(--ok); }
 .btn.verde:hover { background: #18714a; }
+.btn.rojo { background: var(--err); }
+.btn.rojo:hover { background: #8f1c13; }
+.archivadas { margin-top: 18px; border-top: 1px solid var(--borde); padding-top: 12px; }
+.archivadas summary { cursor: pointer; font-weight: 700; color: var(--suave); font-size: 14.5px; padding: 6px 0; }
+.archivadas .tomb { opacity: .8; }
 .velo.dialogo { z-index: 70; align-items: center; padding: 20px; }
 .velo.dialogo .modal { border-radius: 18px; max-width: 400px; }
 .velo.dialogo .botones { display: flex; gap: 8px; margin-top: 16px; }

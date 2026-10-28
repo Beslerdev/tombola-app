@@ -159,6 +159,7 @@
         <p class="ayuda" style="margin-top:16px">Link para participantes: <b id="c-link"></b> <button class="copiar" type="button" id="c-copiar">Copiar</button></p>
         <button class="btn link" type="button" id="salir" style="padding-left:0">← Volver a mis tómbolas</button>
       </form>
+      <div class="tarjeta" id="zona-borrar" style="margin-top:14px"></div>
     </section>
   </main>
 </div>
@@ -253,6 +254,7 @@
     if (!datos.org.activa) av += `<div class="aviso error"><b>Tu suscripción venció y la tómbola está suspendida.</b> No se pueden comprar números. <a href="/panel">Renovala desde tu panel</a>.</div>`;
     if (!datos.org.mp_conectado && !(datos.org.acepta_transferencia && datos.org.alias) && !datos.org.acepta_efectivo) av += `<div class="aviso error"><b>Todavía no configuraste cómo cobrar.</b> Nadie puede comprar números hasta que lo hagas. <a href="/panel#cobros">Configurar cobros</a>.</div>`;
     else if (!datos.org.mp_conectado) av += `<div class="aviso info">Cobrás solo por transferencia: tenés que aprobar cada comprobante. <a href="/panel#cobros">Conectá Mercado Pago</a> para que los pagos se confirmen solos.</div>`;
+    if (datos.tombola.archivada) av += `<div class="aviso info"><b>Tómbola archivada.</b> No aparece en tu lista principal. Podés desarchivarla en Ajustes.</div>`;
     if (datos.tombola.estado === 'pausada') av += `<div class="aviso info"><b>Venta pausada.</b> Los participantes no pueden comprar. Reactivala en Ajustes.</div>`;
     if (vendidos === 100 && config.numero_ganador == null) av += `<div class="aviso completa"><span class="grande">¡Tómbola completa!</span>Se vendieron los 100 números. Ya podés realizar el sorteo y cargar el resultado en la pestaña Sorteo.</div>`;
     else if (100 - vendidos - cuenta('pendiente') === 0 && vendidos < 100) av += `<div class="aviso info">Todos los números están tomados. Faltan verificar <b>${cuenta('pendiente')}</b> comprobantes para completar la tómbola.</div>`;
@@ -260,6 +262,7 @@
 
     pintarPendientes(pend);
     pintarCompras();
+    pintarBorrar();
     pintarGrilla();
     $('#c-link').textContent = linkPublico();
     $('#a-ver').href = '/t/' + datos.tombola.slug;
@@ -418,6 +421,38 @@
   });
   const linkPublico = () => location.origin + '/t/' + (datos ? datos.tombola.slug : '');
   $('#c-copiar').addEventListener('click', async () => { try { await navigator.clipboard.writeText(linkPublico()); toast('Link copiado'); } catch { toast(linkPublico()); } });
+
+  // ---------- Eliminar / archivar ----------
+  function pintarBorrar() {
+    const t = datos.tombola;
+    let h;
+    if (t.archivada) h = `<h3>Tómbola archivada</h3><p class="ayuda">Está guardada en "Archivadas" de tu panel, con todas sus compras.</p>
+      <button class="btn secundario" type="button" id="b-desarchivar">Desarchivar</button>`;
+    else if (datos.eliminable) h = `<h3>Eliminar tómbola</h3><p class="ayuda">Si la creaste por error o de prueba, podés borrarla. Como no tiene ventas ni pagos, no afecta a nadie.</p>
+      <button class="btn rojo" type="button" id="b-eliminar">Eliminar tómbola</button>`;
+    else h = `<h3>Archivar tómbola</h3><p class="ayuda">Como ya tiene ventas, reservas o pagos, no se puede eliminar: esos datos los podés necesitar ante un reclamo. Al archivarla deja de aparecer en tu lista principal${t.estado === 'activa' ? ' y se finaliza la venta' : ''}. Los compradores pueden seguir viendo sus números.</p>
+      <button class="btn secundario" type="button" id="b-archivar">Archivar tómbola</button>`;
+    const z = $('#zona-borrar');
+    if (z.dataset.h === h) return;
+    z.dataset.h = h; z.innerHTML = h;
+    const el = (id) => z.querySelector('#' + id);
+    if (el('b-eliminar')) el('b-eliminar').addEventListener('click', async () => {
+      const ok = await preguntar({ titulo: '¿Eliminar esta tómbola?', texto: `Se borra "${t.nombre}" y su link deja de funcionar. Esto no se puede deshacer.`, si: 'Sí, eliminar', no: 'Cancelar', peligro: true });
+      if (!ok) return;
+      try { await api('/api/panel/tombolas/' + TID + '/eliminar', { method: 'POST', body: '{}' }); location.href = '/panel?eliminada=1'; }
+      catch (e) { toast(e.message); cargar(); }
+    });
+    if (el('b-archivar')) el('b-archivar').addEventListener('click', async () => {
+      const ok = await preguntar({ titulo: '¿Archivar esta tómbola?', texto: `"${t.nombre}" va a quedar en "Archivadas" de tu panel${t.estado === 'activa' ? ' y se va a finalizar la venta' : ''}. Podés desarchivarla cuando quieras.`, si: 'Archivar', no: 'Cancelar' });
+      if (!ok) return;
+      try { await api('/api/panel/tombolas/' + TID, { method: 'POST', body: JSON.stringify({ archivada: true }) }); location.href = '/panel?archivada=1'; }
+      catch (e) { toast(e.message); }
+    });
+    if (el('b-desarchivar')) el('b-desarchivar').addEventListener('click', async () => {
+      try { await api('/api/panel/tombolas/' + TID, { method: 'POST', body: JSON.stringify({ archivada: false }) }); toast('Tómbola desarchivada'); cargar(); }
+      catch (e) { toast(e.message); }
+    });
+  }
 
   // ---------- Sorteo ----------
   function pintarGanador() {

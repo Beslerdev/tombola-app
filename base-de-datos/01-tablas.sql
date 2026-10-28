@@ -55,6 +55,7 @@ create table public.tombolas (
   numero_ganador integer check (numero_ganador between 0 and 99),
   detalle_ganador text,
   estado text not null default 'activa' check (estado in ('activa','pausada','finalizada')),
+  archivada boolean not null default false,          -- oculta de la lista principal del organizador
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

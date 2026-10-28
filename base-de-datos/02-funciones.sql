@@ -297,12 +297,34 @@ begin
     minutos_reserva = coalesce((j->>'minutos_reserva')::int, minutos_reserva),
     info_sorteo = coalesce(j->>'info_sorteo', info_sorteo),
     estado = coalesce(j->>'estado', estado),
+    archivada = coalesce((j->>'archivada')::boolean, archivada),
     numero_ganador = case when j ? 'numero_ganador' then (j->>'numero_ganador')::int else numero_ganador end,
     detalle_ganador = case when j ? 'detalle_ganador' then j->>'detalle_ganador' else detalle_ganador end,
     updated_at = now()
   where id = p_tombola and organizador_id = p_org returning * into t;
   if not found then raise exception 'NO_EXISTE'; end if;
   return row_to_json(t);
+end $$;
+
+-- Eliminar una tómbola creada por error: solo si nunca tuvo ventas ni pagos.
+-- Si alguien reservó, pagó, está por pagar o hubo una devolución, no se borra (se puede archivar).
+create or replace function public.api_tombola_eliminar(p_key text, p_org uuid, p_tombola uuid) returns json
+language plpgsql security definer set search_path = public as $$
+declare t tombolas;
+begin
+  perform _chk(p_key);
+  select * into t from tombolas where id = p_tombola and organizador_id = p_org for update;
+  if not found then raise exception 'NO_EXISTE'; end if;
+  perform liberar_vencidas();
+  if exists (select 1 from compras where tombola_id = t.id and estado not in ('vencida','cancelada','rechazada'))
+     or exists (select 1 from pagos p join compras c on c.id = p.compra_id where c.tombola_id = t.id) then
+    raise exception 'TIENE_VENTAS';
+  end if;
+  delete from comprobantes where compra_id in (select id from compras where tombola_id = t.id);
+  delete from casilleros where tombola_id = t.id;
+  delete from compras where tombola_id = t.id;
+  delete from tombolas where id = t.id;
+  return json_build_object('ok', true);
 end $$;
 
 create or replace function public.api_tombolas_de_org(p_key text, p_org uuid) returns json
@@ -524,7 +546,7 @@ grant execute on function
   public.api_org_crear(text, text, text, text, text), public.api_org_login(text, text), public.api_org_get(text, uuid),
   public.api_org_tokens(text, uuid), public.api_org_update(text, uuid, json), public.api_org_por_mp_user(text, text),
   public.api_org_conectar_mp(text, uuid, text, text), public.api_suscripcion_pago(text, text, uuid, numeric, int, text),
-  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json),
+  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid),
   public.api_tombolas_de_org(text, uuid), public.api_tombola_get(text, uuid), public.api_tombola_publica(text, text),
   public.api_reservar(text, uuid, int[], text, text), public.api_mis_compras(text, uuid, text), public.api_compra(text, uuid),
   public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text), public.api_efectivo(text, uuid, text),

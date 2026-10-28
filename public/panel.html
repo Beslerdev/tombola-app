@@ -220,7 +220,7 @@
     $('#p1').classList.toggle('hecho', p1); $('#p2').classList.toggle('hecho', p2); $('#p3').classList.toggle('hecho', p3);
 
     // Tómbolas
-    $('#lista').innerHTML = tombolas.length ? tombolas.map((t) => `
+    const tarjeta = (t) => `
       <div class="tomb">
         <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
           <h3>${esc(t.nombre)}</h3><span class="estado ${t.numero_ganador != null ? 'finalizada' : t.estado}">${t.numero_ganador != null ? 'Sorteada' : { activa: 'Activa', pausada: 'Pausada', finalizada: 'Finalizada' }[t.estado]}</span>
@@ -233,7 +233,10 @@
           <button class="btn secundario chico" data-copiar="${esc(t.slug)}" type="button">Copiar link</button>
           <a class="btn secundario chico" href="https://wa.me/?text=${encodeURIComponent(`¡Participá de ${t.nombre}! Premio: ${t.premio}. Elegí tu número acá: ${location.origin}/t/${t.slug}`)}" target="_blank" rel="noopener" style="text-decoration:none">Compartir por WhatsApp</a>
         </div>
-      </div>`).join('') : '<div class="vacio">Todavía no creaste ninguna tómbola.</div>';
+      </div>`;
+    const visibles = tombolas.filter((t) => !t.archivada), archivadas = tombolas.filter((t) => t.archivada);
+    $('#lista').innerHTML = (visibles.length ? visibles.map(tarjeta).join('') : `<div class="vacio">${archivadas.length ? 'No tenés tómbolas activas.' : 'Todavía no creaste ninguna tómbola.'}</div>`)
+      + (archivadas.length ? `<details class="archivadas"${$('#lista .archivadas[open]') ? ' open' : ''}><summary>Archivadas (${archivadas.length})</summary>${archivadas.map(tarjeta).join('')}</details>` : '');
     $('#lista').querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
       const url = location.origin + '/t/' + b.dataset.copiar;
       try { await navigator.clipboard.writeText(url); toast('Link copiado'); } catch { toast(url); }
@@ -328,6 +331,8 @@
       } else toast('¡Mercado Pago conectado!');
     }
     if (q.get('mp') === 'error') { irTab('cobros'); toast('No se pudo conectar Mercado Pago. Probá de nuevo.'); }
+    if (q.get('eliminada')) toast('Tómbola eliminada');
+    if (q.get('archivada')) toast('Tómbola archivada');
     if (q.get('bienvenida')) toast('¡Bienvenido a Tutómbola! Conectá tu Mercado Pago para empezar tus 7 días gratis.');
     if (q.get('sub')) {
       const pid = q.get('payment_id') || q.get('collection_id');
