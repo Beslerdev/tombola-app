@@ -16,6 +16,9 @@ test('sin celular del dueño queda el texto de siempre; con celular aparece el l
   await e.api('POST', '/api/panel/perfil', { token: d.token, body: { celular: '11 2345 6789' } });
   assert.equal((await e.api('GET', '/api/contacto')).data.whatsapp, '1123456789');
 
+  // El link ya viene en la página, sin esperar a que cargue nada
+  const html = await e.api('GET', '/ingresar');
+  assert.match(html.data, /wa\.me\/5491123456789\?text=Hola[^>]*>Escribinos por WhatsApp/);
   const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }).catch(() => chromium.launch());
   const p = await nav.newPage({ viewport: { width: 390, height: 800 } });
   await p.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());

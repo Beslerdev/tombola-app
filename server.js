@@ -3,6 +3,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const path = require('path');
+const fs = require('fs');
 
 const env = process.env;
 const {
@@ -257,6 +258,7 @@ app.get('/api/panel', soloOrg, wrap(async (req, res) => {
 }));
 
 app.post('/api/panel/perfil', soloOrg, wrap(async (req, res) => {
+  if (req.org.es_dueno) contactoCache.hasta = 0;
   const b = req.body || {};
   const p = {};
   if (b.nombre !== undefined) { if (!textoValido(b.nombre)) throw errorPublico(400, 'Nombre inválido'); p.nombre = b.nombre.trim(); }
@@ -476,10 +478,17 @@ async function publica(slug) {
 }
 
 // WhatsApp de contacto de la plataforma (el celular que el dueño tiene cargado en "Mi cuenta")
+// Se guarda 1 minuto en memoria para no consultar la base en cada visita (se renueva al editar "Mi cuenta")
+let contactoCache = { valor: null, hasta: 0 };
+async function contactoWhatsapp() {
+  if (Date.now() < contactoCache.hasta) return contactoCache.valor;
+  const r = await rpc('api_contacto', {});
+  contactoCache = { valor: r && r.celular ? r.celular : null, hasta: Date.now() + 60_000 };
+  return contactoCache.valor;
+}
 app.get('/api/contacto', wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store');
-  const r = await rpc('api_contacto', {});
-  res.json({ whatsapp: r && r.celular ? r.celular : null });
+  res.json({ whatsapp: await contactoWhatsapp() });
 }));
 
 app.get('/api/t/:slug', wrap(async (req, res) => {
@@ -679,7 +688,19 @@ app.post('/api/dueno/:org/clave', soloOrg, soloDueno, wrap(async (req, res) => {
 // ======================================================================
 const pub = (f) => path.join(__dirname, 'public', f);
 app.get('/', (req, res) => res.sendFile(pub('inicio.html')));
-app.get(['/ingresar', '/registro'], (req, res) => res.sendFile(pub('cuenta.html')));
+// La pantalla de ingreso ya sale con el link de WhatsApp puesto (sin parpadeo)
+const OLVIDO_SIN = '¿Olvidaste tu contraseña? Escribinos y te generamos una nueva.';
+app.get(['/ingresar', '/registro'], wrap(async (req, res) => {
+  let html = fs.readFileSync(pub('cuenta.html'), 'utf8');
+  let cel = null;
+  try { cel = await contactoWhatsapp(); } catch {}
+  if (cel && /^\d{6,15}$/.test(cel)) {
+    const msg = encodeURIComponent('Hola, me olvidé la contraseña de Tutómbola!. Mi email es: ');
+    html = html.replace(OLVIDO_SIN, `¿Olvidaste tu contraseña? <a href="https://wa.me/549${cel}?text=${msg}" target="_blank" rel="noopener">Escribinos por WhatsApp</a> y te mandamos un link para crear una nueva.`);
+  }
+  res.set('Cache-Control', 'no-store');
+  res.type('html').send(html);
+}));
 app.get('/panel', (req, res) => res.sendFile(pub('panel.html')));
 app.get('/panel/t/:id', (req, res) => res.sendFile(pub('gestion.html')));
 app.get('/dueno', (req, res) => res.sendFile(pub('dueno.html')));
