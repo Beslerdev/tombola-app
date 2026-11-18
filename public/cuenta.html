@@ -29,7 +29,7 @@
       <div class="campo"><label for="i-pass">Contraseña</label><input type="password" id="i-pass" autocomplete="current-password" required></div>
       <div data-error></div>
       <button class="btn oscuro bloque" type="submit">Ingresar</button>
-      <p class="legal">¿Olvidaste tu contraseña? Escribinos y te generamos una nueva.</p>
+      <p class="legal" id="olvido">¿Olvidaste tu contraseña? Escribinos y te generamos una nueva.</p>
     </form>
 
     <form class="tarjeta oculto" id="f-registro">
@@ -64,6 +64,13 @@
   }
   document.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => tab(b.dataset.tab)));
   tab(location.pathname.includes('registro') ? 'registro' : 'ingresar');
+
+  // Contacto por WhatsApp para recuperar la contraseña
+  fetch('/api/contacto').then((r) => r.json()).then((d) => {
+    if (!d.whatsapp) return;
+    const msg = encodeURIComponent('Hola, me olvidé la contraseña de Tutómbola!. Mi email es: ');
+    $('#olvido').innerHTML = `¿Olvidaste tu contraseña? <a href="https://wa.me/549${esc(d.whatsapp)}?text=${msg}" target="_blank" rel="noopener">Escribinos por WhatsApp</a> y te mandamos un link para crear una nueva.`;
+  }).catch(() => {});
 
   async function enviar(form, url, body) {
     const btn = form.querySelector('button[type=submit]'); const err = form.querySelector('[data-error]');

@@ -213,6 +213,14 @@ begin
   return json_build_object('id', o.id, 'email', o.email, 'bloqueado', o.bloqueado);
 end $$;
 
+-- Contacto público de la plataforma: el WhatsApp que el dueño cargó en "Mi cuenta"
+create or replace function public.api_contacto(p_key text) returns json
+language plpgsql security definer set search_path = public as $$
+begin
+  perform _chk(p_key);
+  return json_build_object('celular', (select celular from organizadores where es_dueno and celular is not null order by created_at limit 1));
+end $$;
+
 create or replace function public.api_org_get(p_key text, p_org uuid) returns json
 language plpgsql security definer set search_path = public as $$
 begin perform _chk(p_key); return (select org_json(o) from organizadores o where id = p_org); end $$;
@@ -591,7 +599,7 @@ grant execute on function
   public.api_org_crear(text, text, text, text, text), public.api_org_login(text, text), public.api_org_get(text, uuid),
   public.api_org_tokens(text, uuid), public.api_org_update(text, uuid, json), public.api_org_por_mp_user(text, text),
   public.api_org_conectar_mp(text, uuid, text, text), public.api_suscripcion_pago(text, text, uuid, numeric, int, text),
-  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid), public.api_reset_crear(text, text, text), public.api_reset_usar(text, text, text), public.api_admin_reservar(text, uuid, uuid, integer[], text, text, boolean),
+  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid), public.api_reset_crear(text, text, text), public.api_reset_usar(text, text, text), public.api_admin_reservar(text, uuid, uuid, integer[], text, text, boolean), public.api_contacto(text),
   public.api_tombolas_de_org(text, uuid), public.api_tombola_get(text, uuid), public.api_tombola_publica(text, text),
   public.api_reservar(text, uuid, int[], text, text), public.api_mis_compras(text, uuid, text), public.api_compra(text, uuid),
   public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text), public.api_efectivo(text, uuid, text),

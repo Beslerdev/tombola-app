@@ -475,6 +475,13 @@ async function publica(slug) {
   return d;
 }
 
+// WhatsApp de contacto de la plataforma (el celular que el dueño tiene cargado en "Mi cuenta")
+app.get('/api/contacto', wrap(async (req, res) => {
+  res.set('Cache-Control', 'public, max-age=300');
+  const r = await rpc('api_contacto', {});
+  res.json({ whatsapp: r && r.celular ? r.celular : null });
+}));
+
 app.get('/api/t/:slug', wrap(async (req, res) => {
   res.set('Cache-Control', 'no-store');
   const d = await publica(req.params.slug);
