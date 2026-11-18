@@ -188,6 +188,31 @@ begin
   return (select json_build_object('id', id, 'pass_hash', pass_hash, 'bloqueado', bloqueado) from organizadores where email = lower(p_email));
 end $$;
 
+-- Restablecer contraseña con un link de un solo uso (vence a las 24 h)
+create or replace function public.api_reset_crear(p_key text, p_email text, p_token_hash text) returns json
+language plpgsql security definer set search_path = public as $$
+declare o organizadores;
+begin
+  perform _chk(p_key);
+  select * into o from organizadores where email = lower(trim(p_email));
+  if not found then raise exception 'NO_EXISTE'; end if;
+  update restablecer_pass set usado_at = now() where organizador_id = o.id and usado_at is null;
+  insert into restablecer_pass (token_hash, organizador_id, expira) values (p_token_hash, o.id, now() + interval '24 hours');
+  return json_build_object('email', o.email, 'nombre', o.nombre);
+end $$;
+
+create or replace function public.api_reset_usar(p_key text, p_token_hash text, p_pass_hash text) returns json
+language plpgsql security definer set search_path = public as $$
+declare r restablecer_pass; o organizadores;
+begin
+  perform _chk(p_key);
+  select * into r from restablecer_pass where token_hash = p_token_hash for update;
+  if not found or r.usado_at is not null or r.expira < now() then raise exception 'LINK_INVALIDO'; end if;
+  update restablecer_pass set usado_at = now() where token_hash = p_token_hash;
+  update organizadores set pass_hash = p_pass_hash, updated_at = now() where id = r.organizador_id returning * into o;
+  return json_build_object('id', o.id, 'email', o.email, 'bloqueado', o.bloqueado);
+end $$;
+
 create or replace function public.api_org_get(p_key text, p_org uuid) returns json
 language plpgsql security definer set search_path = public as $$
 begin perform _chk(p_key); return (select org_json(o) from organizadores o where id = p_org); end $$;
@@ -546,7 +571,7 @@ grant execute on function
   public.api_org_crear(text, text, text, text, text), public.api_org_login(text, text), public.api_org_get(text, uuid),
   public.api_org_tokens(text, uuid), public.api_org_update(text, uuid, json), public.api_org_por_mp_user(text, text),
   public.api_org_conectar_mp(text, uuid, text, text), public.api_suscripcion_pago(text, text, uuid, numeric, int, text),
-  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid),
+  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid), public.api_reset_crear(text, text, text), public.api_reset_usar(text, text, text),
   public.api_tombolas_de_org(text, uuid), public.api_tombola_get(text, uuid), public.api_tombola_publica(text, text),
   public.api_reservar(text, uuid, int[], text, text), public.api_mis_compras(text, uuid, text), public.api_compra(text, uuid),
   public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text), public.api_efectivo(text, uuid, text),

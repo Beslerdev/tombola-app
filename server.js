@@ -46,6 +46,7 @@ const MENSAJES = {
   VENCIDA: 'La reserva venció. Elegí los números nuevamente.',
   NO_EXISTE: 'No encontramos lo que buscabas',
   ESTADO_INVALIDO: 'La compra ya no está en un estado que permita esta acción',
+  LINK_INVALIDO: 'Este link ya se usó o venció. Pedí uno nuevo.',
   TIENE_VENTAS: 'Esta tómbola ya tiene ventas, reservas o pagos, así que no se puede eliminar. Podés archivarla.',
   SIN_NUMEROS: 'Elegí al menos un número',
   EMAIL_EXISTE: 'Ya hay una cuenta con ese email. Ingresá con tu contraseña.',
@@ -229,6 +230,18 @@ app.post('/api/login', wrap(async (req, res) => {
   const { email, password } = req.body || {};
   const u = await rpc('api_org_login', { p_email: String(email || '').trim() });
   if (!u || !verificarPass(String(password || ''), u.pass_hash)) throw errorPublico(401, 'Email o contraseña incorrectos');
+  if (u.bloqueado) throw errorPublico(403, 'Tu cuenta está bloqueada. Contactá a Tutómbola!.');
+  res.json({ token: crearSesion(u.id) });
+}));
+
+const hashToken = (t) => crypto.createHash('sha256').update(String(t)).digest('hex');
+// Elegir una contraseña nueva con un link de un solo uso (lo genera el dueño de la plataforma)
+app.post('/api/restablecer', wrap(async (req, res) => {
+  if (limitar('rst:' + req.ip, 10, 15 * 60_000)) throw errorPublico(429, 'Demasiados intentos. Esperá 15 minutos.');
+  const { token, password } = req.body || {};
+  if (typeof token !== 'string' || token.length < 20 || token.length > 100) throw errorPublico(400, MENSAJES.LINK_INVALIDO);
+  if (typeof password !== 'string' || password.length < 8) throw errorPublico(400, 'La contraseña debe tener al menos 8 caracteres');
+  const u = await rpc('api_reset_usar', { p_token_hash: hashToken(token), p_pass_hash: hashPass(password) });
   if (u.bloqueado) throw errorPublico(403, 'Tu cuenta está bloqueada. Contactá a Tutómbola!.');
   res.json({ token: crearSesion(u.id) });
 }));
@@ -628,6 +641,13 @@ app.post('/api/dueno/:org/bloquear', soloOrg, soloDueno, wrap(async (req, res) =
   await rpc('api_dueno_bloquear', { p_org: req.params.org, p_bloq: Boolean(req.body && req.body.bloquear) });
   res.json({ ok: true });
 }));
+app.post('/api/dueno/restablecer', soloOrg, soloDueno, wrap(async (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim();
+  if (!EMAIL.test(email)) throw errorPublico(400, 'Email inválido');
+  const token = crypto.randomBytes(24).toString('base64url');
+  await rpc('api_reset_crear', { p_email: email, p_token_hash: hashToken(token) });
+  res.json({ link: `${PUBLIC_URL}/restablecer#${token}` });
+}));
 app.post('/api/dueno/:org/clave', soloOrg, soloDueno, wrap(async (req, res) => {
   if (!UUID.test(req.params.org)) throw errorPublico(400, 'Id inválido');
   const nueva = crypto.randomBytes(6).toString('base64url');
@@ -644,6 +664,7 @@ app.get(['/ingresar', '/registro'], (req, res) => res.sendFile(pub('cuenta.html'
 app.get('/panel', (req, res) => res.sendFile(pub('panel.html')));
 app.get('/panel/t/:id', (req, res) => res.sendFile(pub('gestion.html')));
 app.get('/dueno', (req, res) => res.sendFile(pub('dueno.html')));
+app.get('/restablecer', (req, res) => res.sendFile(pub('restablecer.html')));
 app.get('/terminos', (req, res) => res.sendFile(pub('terminos.html')));
 app.get('/t/:slug', (req, res) => res.sendFile(pub('tombola.html')));
 app.get('/admin', (req, res) => res.redirect('/panel'));

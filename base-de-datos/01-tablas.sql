@@ -129,6 +129,16 @@ create table public.pagos_suscripcion (
 );
 
 -- Seguridad: RLS activo sin políticas en todas las tablas
+-- Links de un solo uso para elegir una contraseña nueva (se guarda solo el hash del link)
+create table if not exists public.restablecer_pass (
+  token_hash text primary key,
+  organizador_id uuid not null references public.organizadores(id) on delete cascade,
+  expira timestamptz not null,
+  usado_at timestamptz,
+  created_at timestamptz not null default now()
+);
+alter table public.restablecer_pass enable row level security;
+
 alter table public.app_secret enable row level security;
 alter table public.organizadores enable row level security;
 alter table public.pruebas_mp enable row level security;
