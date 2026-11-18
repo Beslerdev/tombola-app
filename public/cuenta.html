@@ -66,7 +66,7 @@
   tab(location.pathname.includes('registro') ? 'registro' : 'ingresar');
 
   // Contacto por WhatsApp para recuperar la contraseña
-  fetch('/api/contacto').then((r) => r.json()).then((d) => {
+  fetch('/api/contacto', { cache: 'no-store' }).then((r) => r.json()).then((d) => {
     if (!d.whatsapp) return;
     const msg = encodeURIComponent('Hola, me olvidé la contraseña de Tutómbola!. Mi email es: ');
     $('#olvido').innerHTML = `¿Olvidaste tu contraseña? <a href="https://wa.me/549${esc(d.whatsapp)}?text=${msg}" target="_blank" rel="noopener">Escribinos por WhatsApp</a> y te mandamos un link para crear una nueva.`;
