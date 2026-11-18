@@ -342,6 +342,18 @@ app.get('/api/panel/comprobante/:id', soloOrg, wrap(async (req, res) => {
   res.set('Content-Type', c.mime); res.set('Cache-Control', 'private, no-store');
   res.send(Buffer.from(c.b64, 'base64'));
 }));
+// El organizador reserva o vende números a nombre de otra persona (por ejemplo, "guardame este número")
+app.post('/api/panel/tombolas/:id/reservar', soloOrg, wrap(async (req, res) => {
+  const t = await tombolaPropia(req);
+  const { numeros, nombre } = req.body || {};
+  const celular = normCelular(req.body && req.body.celular);
+  if (!Array.isArray(numeros) || !numeros.length || numeros.length > 100 || !numeros.every((n) => Number.isInteger(n) && n >= 0 && n <= 99)) throw errorPublico(400, 'Números inválidos');
+  if (!textoValido(nombre)) throw errorPublico(400, 'Ingresá el nombre de la persona');
+  if (!celularValido(celular)) throw errorPublico(400, 'Ingresá un celular válido (con código de área)');
+  const r = await rpc('api_admin_reservar', { p_org: req.org.id, p_tombola: t.id, p_numeros: [...new Set(numeros)],
+    p_nombre: nombre.trim(), p_celular: celular, p_pagado: req.body.pagado === true });
+  res.json(r);
+}));
 app.post('/api/panel/compras/:id/aprobar', soloOrg, wrap(async (req, res) => {
   await compraPropia(req); await rpc('api_admin_aprobar', { p_compra: req.params.id }); res.json({ ok: true });
 }));

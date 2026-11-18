@@ -265,3 +265,6 @@ input:focus, textarea:focus { outline: none; border-color: var(--tinta-2); box-s
 .pie a { color: var(--suave); }
 
 @media (max-width: 380px) { .grilla { gap: 3px; } .celda { border-radius: 6px; } }
+
+.reservar-para { margin-top: 12px; padding: 14px; border: 1px dashed var(--borde); border-radius: 12px; background: rgba(255,255,255,.6); }
+.reservar-para > b { display: block; margin-bottom: 8px; }

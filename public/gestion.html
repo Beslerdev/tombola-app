@@ -246,8 +246,10 @@
     $('#c-pend').textContent = pend.length; $('#c-pend').classList.toggle('oculto', !pend.length);
     document.title = (pend.length ? `(${pend.length}) ` : '') + config.nombre + ' · Tutómbola!';
 
-    if (pendAnterior !== null && pend.length > pendAnterior) toast('Hay una compra nueva que requiere tu atención');
-    pendAnterior = pend.length;
+    // Los números que guardó el propio organizador no cuentan como "compra nueva"
+    const pendAjenos = pend.filter((c) => c.metodo_pago !== 'guardado').length;
+    if (pendAnterior !== null && pendAjenos > pendAnterior) toast('Hay una compra nueva que requiere tu atención');
+    pendAnterior = pendAjenos;
 
     // Avisos
     let av = '';
@@ -272,10 +274,10 @@
 
   function tarjetaCompra(c, conAcciones) {
     return `<div class="compra" data-id="${c.id}">
-      <div class="compra-cab"><span class="persona">${esc(c.nombre)}</span><span class="estado ${c.estado}">${c.estado === 'pendiente' && c.metodo_pago === 'efectivo' ? 'Por cobrar en efectivo' : { reservada: 'Reservada', pendiente: 'Por verificar', aprobada: 'Confirmada', rechazada: 'Rechazada', vencida: 'Vencida', excepcion: 'Devolver dinero', devuelta: 'Devuelta' }[c.estado]}</span></div>
+      <div class="compra-cab"><span class="persona">${esc(c.nombre)}</span><span class="estado ${c.estado}">${c.estado === 'pendiente' && c.metodo_pago === 'efectivo' ? 'Por cobrar en efectivo' : c.estado === 'pendiente' && c.metodo_pago === 'guardado' ? 'Guardado (sin pagar)' : { reservada: 'Reservada', pendiente: 'Por verificar', aprobada: 'Confirmada', rechazada: 'Rechazada', vencida: 'Vencida', excepcion: 'Devolver dinero', devuelta: 'Devuelta' }[c.estado]}</span></div>
       <div class="meta"><a href="${wa(c.celular)}" target="_blank" rel="noopener">WhatsApp ${esc(c.celular)}</a> · Código ${esc(c.codigo)} · ${fecha(c.created_at)}</div>
       <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla${c.estado === 'aprobada' ? '' : ' clara'}">${pad(n)}</span>`).join('')}</div>
-      <div class="total-recaudado" style="margin-top:6px">Total <b>${pesos(c.monto || c.numeros.length * datos.config.precio)}</b>${c.mp_payment_id ? ` · Mercado Pago operación <b>${esc(c.mp_payment_id)}</b>${c.metodo_pago ? ' (' + esc(c.metodo_pago) + ')' : ''}` : ''}${c.metodo_pago === 'efectivo' && c.estado === 'aprobada' ? ' · 💵 efectivo' : ''}${c.pagado_at ? ' · pagado ' + fecha(c.pagado_at) : ''}</div>
+      <div class="total-recaudado" style="margin-top:6px">Total <b>${pesos(c.monto || c.numeros.length * datos.config.precio)}</b>${c.mp_payment_id ? ` · Mercado Pago operación <b>${esc(c.mp_payment_id)}</b>${c.metodo_pago ? ' (' + esc(c.metodo_pago) + ')' : ''}` : ''}${c.metodo_pago === 'efectivo' && c.estado === 'aprobada' ? ' · 💵 efectivo' : ''}${c.metodo_pago === 'en_mano' ? ' · 🤝 cargado por vos' : ''}${c.pagado_at ? ' · pagado ' + fecha(c.pagado_at) : ''}</div>
       ${c.estado === 'pendiente' && c.metodo_pago === 'efectivo' && c.reservado_hasta ? `<div class="total-recaudado" style="margin-top:4px">💵 Paga en efectivo · se libera sola el ${fecha(c.reservado_hasta)} si no aprobás el pago</div>` : ''}
       ${c.nota_admin ? `<div class="nota">Motivo: ${esc(c.nota_admin)}</div>` : ''}
       <div class="acciones">
@@ -315,6 +317,7 @@
   function accionesCompra(c, enGrilla) {
     const mp = !!c.mp_payment_id;
     if (c.estado === 'reservada') return enGrilla ? `<button class="btn secundario chico" data-rechazar="${c.id}">Liberar reserva</button>` : '';
+    if (c.estado === 'pendiente' && c.metodo_pago === 'guardado') return `<button class="btn verde chico" data-aprobar="${c.id}">Ya me pagó</button><button class="btn secundario chico" data-rechazar="${c.id}">Liberar número</button>`;
     if (c.estado === 'pendiente') return `${enGrilla && c.tiene_comprobante ? `<button class="btn secundario chico" data-ver="${c.id}">Ver comprobante</button>` : ''}<button class="btn verde chico" data-aprobar="${c.id}">Aprobar pago</button><button class="btn secundario chico" data-rechazar="${c.id}">Rechazar</button>`;
     if (c.estado === 'aprobada') return mp
       ? `<button class="btn secundario chico" data-devolver="${c.id}">${enGrilla ? 'Liberar y devolver el dinero' : 'Anular y devolver el dinero'}</button><button class="btn link chico" data-rechazar="${c.id}">${enGrilla ? 'Liberar sin devolver' : 'Anular sin devolver'}</button>`
@@ -326,12 +329,38 @@
 
   function detalleNumero(n) {
     const x = datos.numeros[n];
+    // Si está completando "Reservar para alguien" de este número, no se borra lo que escribió al actualizar
+    const fAbierto = $('#f-para');
+    if (fAbierto && Number(fAbierto.dataset.n) === n && x.e === 'libre') return;
     const c = x.codigo ? datos.compras.find((k) => k.codigo === x.codigo) : null;
-    const txt = x.e === 'pendiente' && c && c.metodo_pago === 'efectivo' ? 'Por cobrar en efectivo' : { libre: 'Libre', reservado: 'Reservado (esperando el pago)', pendiente: 'Comprobante por verificar', pagado: 'Vendido' }[x.e];
+    const txt = x.e === 'pendiente' && c && c.metodo_pago === 'efectivo' ? 'Por cobrar en efectivo' : x.e === 'pendiente' && c && c.metodo_pago === 'guardado' ? 'Guardado sin pagar' : { libre: 'Libre', reservado: 'Reservado (esperando el pago)', pendiente: 'Comprobante por verificar', pagado: 'Vendido' }[x.e];
     const otros = c && c.numeros.length > 1 ? `<br><span style="font-size:13px">Esta compra incluye los números ${c.numeros.map(pad).join(', ')}.</span>` : '';
     $('#detalle-num').innerHTML = `<div class="aviso ${x.e === 'pagado' ? 'ok' : 'info'}"><b>Número ${pad(n)}</b> · ${txt}${x.nombre ? `<br>${esc(x.nombre)} · <a href="${wa(x.celular)}" target="_blank" rel="noopener">${esc(x.celular)}</a> · Código ${esc(x.codigo)}` : ''}${otros}
       ${c ? `<div class="acciones">${accionesCompra(c, true)}</div>` : ''}</div>`;
+    if (x.e === 'libre' && datos.config.estado === 'activa' && datos.config.numero_ganador == null) {
+      $('#detalle-num').insertAdjacentHTML('beforeend', `<form class="reservar-para" id="f-para" data-n="${n}" autocomplete="off">
+        <b>Reservar para alguien</b>
+        <div class="campo"><label for="pa-nombre">Nombre y apellido</label><input type="text" id="pa-nombre" maxlength="80" required></div>
+        <div class="campo"><label for="pa-cel">Celular</label><input type="tel" id="pa-cel" inputmode="tel" required placeholder="Ej: 11 2345 6789"><div class="ayuda">Con su celular puede ver el número en "Mis números".</div></div>
+        <div data-error></div>
+        <div class="acciones"><button class="btn verde chico" type="submit" data-pagado="1">Ya me pagó</button><button class="btn secundario chico" type="submit" data-pagado="0">Guardar sin pagar</button></div>
+      </form>`);
+    }
   }
+  document.addEventListener('submit', async (ev) => {
+    if (ev.target.id !== 'f-para') return;
+    ev.preventDefault();
+    const f = ev.target, n = numSel, pagado = ev.submitter && ev.submitter.dataset.pagado === '1';
+    f.querySelectorAll('button').forEach((b) => (b.disabled = true));
+    try {
+      await api('/api/panel/tombolas/' + TID + '/reservar', { method: 'POST', body: JSON.stringify({ numeros: [n], nombre: $('#pa-nombre').value, celular: $('#pa-cel').value, pagado }) });
+      toast(pagado ? `Número ${pad(n)} vendido` : `Número ${pad(n)} guardado sin pagar`);
+      await cargar();
+    } catch (e) {
+      f.querySelector('[data-error]').innerHTML = `<div class="aviso error">${esc(e.message)}</div>`;
+      f.querySelectorAll('button').forEach((b) => (b.disabled = false));
+    }
+  });
   $('#a-grilla').addEventListener('click', (ev) => { const b = ev.target.closest('.celda'); if (!b) return; numSel = Number(b.dataset.n); pintarGrilla(); });
 
   // ---------- Acciones ----------

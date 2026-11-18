@@ -513,6 +513,26 @@ begin
   return (select json_build_object('mime', mime, 'nombre', nombre_archivo, 'b64', encode(data, 'base64')) from comprobantes where compra_id = p_compra);
 end $$;
 
+-- El organizador reserva números a nombre de alguien desde su panel:
+-- "ya me pagó" (queda vendido) o "guardar sin pagar" (queda guardado hasta que lo apruebe o lo libere).
+create or replace function public.api_admin_reservar(p_key text, p_org uuid, p_tombola uuid, p_numeros integer[], p_nombre text, p_celular text, p_pagado boolean) returns json
+language plpgsql security definer set search_path = public as $$
+declare r json; v_id uuid;
+begin
+  perform _chk(p_key);
+  if not exists (select 1 from tombolas where id = p_tombola and organizador_id = p_org) then raise exception 'NO_EXISTE'; end if;
+  r := reservar_t(p_tombola, p_numeros, p_nombre, p_celular);
+  v_id := (r->>'id')::uuid;
+  if p_pagado then
+    update compras set metodo_pago = 'en_mano', pagado_at = now() where id = v_id;
+    perform aprobar_compra(v_id);
+  else
+    update compras set estado = 'pendiente', metodo_pago = 'guardado', reservado_hasta = null, updated_at = now() where id = v_id;
+    update casilleros set estado = 'pendiente', reservado_hasta = null where compra_id = v_id;
+  end if;
+  return json_build_object('id', v_id, 'codigo', r->>'codigo');
+end $$;
+
 create or replace function public.api_admin_aprobar(p_key text, p_compra uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin perform _chk(p_key); perform aprobar_compra(p_compra); end $$;
@@ -571,7 +591,7 @@ grant execute on function
   public.api_org_crear(text, text, text, text, text), public.api_org_login(text, text), public.api_org_get(text, uuid),
   public.api_org_tokens(text, uuid), public.api_org_update(text, uuid, json), public.api_org_por_mp_user(text, text),
   public.api_org_conectar_mp(text, uuid, text, text), public.api_suscripcion_pago(text, text, uuid, numeric, int, text),
-  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid), public.api_reset_crear(text, text, text), public.api_reset_usar(text, text, text),
+  public.api_tombola_crear(text, uuid, text, json), public.api_tombola_update(text, uuid, uuid, json), public.api_tombola_eliminar(text, uuid, uuid), public.api_reset_crear(text, text, text), public.api_reset_usar(text, text, text), public.api_admin_reservar(text, uuid, uuid, integer[], text, text, boolean),
   public.api_tombolas_de_org(text, uuid), public.api_tombola_get(text, uuid), public.api_tombola_publica(text, text),
   public.api_reservar(text, uuid, int[], text, text), public.api_mis_compras(text, uuid, text), public.api_compra(text, uuid),
   public.api_comprobante(text, uuid, text, text, text, text), public.api_cancelar(text, uuid, text), public.api_efectivo(text, uuid, text),

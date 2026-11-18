@@ -600,7 +600,7 @@
   }
   document.querySelectorAll('.pestanas button').forEach((b) => b.addEventListener('click', () => irTab(b.dataset.tab)));
 
-  const TXT = { reservada: 'Reservado · falta pagar', pendiente: 'En verificación', pendiente_efectivo: 'A pagar en efectivo', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida', excepcion: 'Pago a devolver', devuelta: 'Pago devuelto' };
+  const TXT = { reservada: 'Reservado · falta pagar', pendiente: 'En verificación', pendiente_efectivo: 'A pagar en efectivo', pendiente_guardado: 'Guardado · falta pagar', aprobada: 'Confirmado ✓', rechazada: 'Rechazado', vencida: 'Reserva vencida', excepcion: 'Pago a devolver', devuelta: 'Pago devuelto' };
 
   async function verMios(cel) {
     if (!cel) return;
@@ -618,7 +618,7 @@
       html += lista.map((c) => `
         <div class="compra">
           <div class="compra-cab">
-            <span class="estado ${c.estado}">${(c.estado === 'pendiente' && c.metodo_pago === 'efectivo' ? TXT.pendiente_efectivo : TXT[c.estado]) || c.estado}</span>
+            <span class="estado ${c.estado}">${(c.estado === 'pendiente' && c.metodo_pago === 'efectivo' ? TXT.pendiente_efectivo : c.estado === 'pendiente' && c.metodo_pago === 'guardado' ? TXT.pendiente_guardado : TXT[c.estado]) || c.estado}</span>
             <span class="cod">Código ${esc(c.codigo)} · ${new Date(c.created_at).toLocaleDateString('es-AR')}</span>
           </div>
           <div class="bolillas">${c.numeros.map((n) => `<span class="bolilla clara">${pad(n)}</span>`).join('')}</div>
