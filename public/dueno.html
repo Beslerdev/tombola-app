@@ -116,7 +116,7 @@
           ${o.tombolas} tómbola(s) · ${o.vendidos} números vendidos · cobros: ${[o.mp_conectado ? 'Mercado Pago' : '', o.acepta_transferencia && o.alias ? 'transferencia' : ''].filter(Boolean).join(' + ') || 'sin configurar'} · pagó ${pesos(o.pagado_total)}</div>
         ${o.es_dueno ? '' : `<div class="acciones">
           <button class="btn secundario chico" data-ext="${o.id}">Sumar días</button>
-          <button class="btn secundario chico" data-clave="${o.id}">Nueva contraseña</button>
+          <button class="btn secundario chico" data-clave="${o.id}">Link para nueva contraseña</button>
           <button class="btn link chico" data-bloq="${o.id}" data-v="${o.bloqueado ? 0 : 1}">${o.bloqueado ? 'Desbloquear' : 'Bloquear'}</button>
         </div>`}
       </div>`;
@@ -133,9 +133,8 @@
         await api(`/api/dueno/${o.id}/extender`, { method: 'POST', body: JSON.stringify({ dias: parseInt(dias, 10) }) });
         toast('Días sumados'); cargar();
       } else if (b.dataset.clave) {
-        if (!(await preguntar({ titulo: `Nueva contraseña para ${o.nombre}`, texto: 'Se genera una contraseña nueva y la anterior deja de funcionar. Pasásela al organizador.', si: 'Generar' }))) return;
-        const r = await api(`/api/dueno/${o.id}/clave`, { method: 'POST' });
-        await preguntar({ titulo: 'Contraseña nueva', texto: `Email: ${o.email}\nContraseña: ${r.clave}\n\nPasásela al organizador; puede cambiarla desde "Mi cuenta".`, si: 'Listo', no: 'Cerrar' });
+        const r = await api('/api/dueno/restablecer', { method: 'POST', body: JSON.stringify({ email: o.email }) });
+        mostrarLink(o, r.link);
       } else if (b.dataset.bloq) {
         const bloquear = b.dataset.v === '1';
         if (!(await preguntar({ titulo: `${bloquear ? 'Bloquear' : 'Desbloquear'} a ${o.nombre}`, texto: bloquear ? 'No va a poder ingresar y sus tómbolas quedan suspendidas.' : 'Vuelve a tener acceso.', si: bloquear ? 'Bloquear' : 'Desbloquear', peligro: bloquear }))) return;
@@ -144,6 +143,36 @@
       }
     } catch (err) { toast(err.message); }
   });
+  // Ventana con el link de un solo uso para que el organizador elija su contraseña
+  const mLink = document.createElement('div');
+  mLink.className = 'velo dialogo oculto'; mLink.id = 'm-link';
+  mLink.innerHTML = `<div class="modal">
+      <h2 style="font-size:21px">Link para nueva contraseña</h2>
+      <p class="sub" data-x style="margin-bottom:10px"></p>
+      <input type="text" id="ml-link" readonly style="font-size:13px">
+      <p class="ayuda" style="margin:8px 0 0">Sirve una sola vez y vence en 24 horas. Si generás otro, este deja de funcionar. Su contraseña actual sigue andando hasta que elija la nueva.</p>
+      <div class="botones" style="flex-wrap:wrap">
+        <a class="btn verde" id="ml-wa" target="_blank" rel="noopener" style="text-decoration:none;text-align:center;display:flex;align-items:center;justify-content:center">Enviar por WhatsApp</a>
+        <button type="button" class="btn secundario" id="ml-copiar">Copiar link</button>
+      </div>
+      <button type="button" class="btn link bloque" id="ml-cerrar" style="margin-top:6px">Cerrar</button>
+    </div>`;
+  document.body.appendChild(mLink);
+  const cerrarLink = () => { mLink.classList.add('oculto'); $('#ml-link').value = ''; };
+  $('#ml-cerrar').addEventListener('click', cerrarLink);
+  mLink.addEventListener('click', (e) => { if (e.target === mLink) cerrarLink(); });
+  $('#ml-copiar').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('#ml-link').value); } catch { $('#ml-link').select(); document.execCommand('copy'); }
+    toast('Link copiado');
+  });
+  function mostrarLink(o, link) {
+    mLink.querySelector('[data-x]').textContent = `Mandale este link a ${o.nombre} (${o.email}). Al abrirlo elige su contraseña nueva y entra directo a su panel.`;
+    $('#ml-link').value = link;
+    const msg = `Hola ${o.nombre}! Para elegir tu contraseña nueva de Tutómbola!, abrí este link (sirve una sola vez, vence en 24 horas):\n${link}`;
+    $('#ml-wa').href = `https://wa.me/${o.celular ? '549' + o.celular : ''}?text=${encodeURIComponent(msg)}`;
+    $('#ml-wa').textContent = o.celular ? 'Enviar por WhatsApp' : 'Enviar por WhatsApp (elegís el contacto)';
+    mLink.classList.remove('oculto');
+  }
   cargar().catch((e) => toast(e.message));
 })();
 </script>

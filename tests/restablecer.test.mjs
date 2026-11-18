@@ -59,3 +59,40 @@ test('solo el dueño puede generar links, y la base guarda solo el hash', async 
   assert.ok(filas.every((f) => f.token_hash !== t && /^[0-9a-f]{64}$/.test(f.token_hash)));
   assert.equal((await pedirLink('noexiste@test.com')).status, 400);
 });
+
+test('en pantalla: el dueño genera el link desde su panel y el organizador elige su contraseña', async () => {
+  const { chromium } = await import('playwright');
+  const S = process.env.CAPTURAS;
+  const cliente = await e.registrar({ nombre: 'Club Los Andes', celular: '11 3333 4444' });
+  const nav = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' }).catch(() => chromium.launch());
+  const ctx = await nav.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await ctx.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
+  const p = await ctx.newPage();
+  const errores = []; p.on('pageerror', (x) => errores.push(x.message));
+  await p.goto(e.url + '/terminos'); await p.evaluate((tk) => localStorage.setItem('tt_sesion', tk), dueno.token);
+  await p.goto(e.url + '/dueno');
+  await p.fill('#buscar', 'los andes');
+  await p.click('[data-clave]');
+  await p.waitForSelector('#m-link:not(.oculto)');
+  const link = await p.inputValue('#ml-link');
+  assert.match(link, /\/restablecer#[\w-]{30,}$/);
+  const wa = await p.getAttribute('#ml-wa', 'href');
+  assert.ok(wa.startsWith('https://wa.me/5491133334444?text='), wa);
+  assert.ok(decodeURIComponent(wa).includes(link));
+  if (S) await p.screenshot({ path: S + '/link-1-dueno.png' });
+  await p.click('#ml-cerrar');
+
+  // El organizador abre el link en su celular
+  const ctx2 = await nav.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  await ctx2.route(/fonts\.(googleapis|gstatic)/, (r) => r.abort());
+  const c = await ctx2.newPage();
+  c.on('pageerror', (x) => errores.push(x.message));
+  await c.goto(link.replace(/^https?:\/\/[^/]+/, e.url));
+  await c.fill('#n-pass', 'mi-clave-nueva-1'); await c.fill('#n-pass2', 'mi-clave-nueva-1');
+  if (S) await c.screenshot({ path: S + '/link-2-cliente.png' });
+  await c.click('#f-nueva button');
+  await c.waitForURL(/\/panel$/);
+  assert.equal((await login(cliente.org.email, 'mi-clave-nueva-1')).status, 200);
+  assert.deepEqual(errores, []);
+  await nav.close();
+});
